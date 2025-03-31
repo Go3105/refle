@@ -1,4 +1,4 @@
-import { lusitana } from '../components/fonts';
+import { lusitana } from '../../../app/components/fonts';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
