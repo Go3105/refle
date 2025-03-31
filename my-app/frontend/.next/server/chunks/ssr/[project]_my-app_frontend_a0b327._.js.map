@@ -1,9 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///Users/satogo/Downloads/private/%E3%81%BB%E3%82%99%E3%81%A1%E3%81%BB%E3%82%99%E3%81%A1/refle/nextjs-dashboard/my-app/frontend/my-app/frontend/app/page.tsx"],"sourcesContent":["import Image from 'next/image';\nimport Link from 'next/link';\n\nexport default function Page() {\n    return (\n        <main className=\"flex justify-center items-center h-screen\">\n            <div className=\"text-center\">\n                <Image\n                    src=\"/ai_character.png\"\n                    width={200}\n                    height={200}\n                    alt=\"AI character\"\n                />\n                <Link\n                    href=\"dashboard/conversation\"\n                    className=\"mt-[25vh] block rounded-lg bg-pink-100 px-5 py-5 font-serif hover:bg-pink-200\"\n                >\n                    <p>今日の振り返りを始める</p>\n                </Link>\n            </div>\n        </main >\n    );\n}\n"],"names":[],"mappings":";;;;AAAA;AACA;;;;AAEe,SAAS;IACpB,qBACI,sYAAC;QAAK,WAAU;kBACZ,cAAA,sYAAC;YAAI,WAAU;;8BACX,sYAAC,qRAAA,CAAA,UAAK;oBACF,KAAI;oBACJ,OAAO;oBACP,QAAQ;oBACR,KAAI;;;;;;8BAER,sYAAC,oTAAA,CAAA,UAAI;oBACD,MAAK;oBACL,WAAU;8BAEV,cAAA,sYAAC;kCAAE;;;;;;;;;;;;;;;;;;;;;;AAKvB"}},
-    {"offset": {"line": 59, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
-    {"offset": {"line": 70, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":""}},
-    {"offset": {"line": 70, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}}]
-}

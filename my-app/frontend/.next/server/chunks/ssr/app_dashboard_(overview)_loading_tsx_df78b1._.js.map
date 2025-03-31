@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///Users/satogo/Downloads/private/%E3%81%BB%E3%82%99%E3%81%A1%E3%81%BB%E3%82%99%E3%81%A1/refle/nextjs-dashboard/my-app/frontend/my-app/frontend/app/dashboard/%28overview%29/loading.tsx"],"sourcesContent":["\n\nexport default function Loading() {\n\n}"],"names":[],"mappings":";;;AAEe,SAAS,WAExB"}},
-    {"offset": {"line": 11, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}}]
-}
