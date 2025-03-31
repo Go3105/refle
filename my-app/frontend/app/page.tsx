@@ -12,7 +12,7 @@ export default function Page() {
                     alt="AI character"
                 />
                 <Link
-                    href="dashboard/conversation"
+                    href="/conversation"
                     className="mt-[25vh] block rounded-lg bg-pink-100 px-5 py-5 font-serif hover:bg-pink-200"
                 >
                     <p>今日の振り返りを始める</p>

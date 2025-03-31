@@ -52,7 +52,7 @@ var __TURBOPACK__imported__module__$5b$externals$5d2f$node$3a$url__$5b$external$
 var __TURBOPACK__imported__module__$5b$externals$5d2f$node$3a$path__$5b$external$5d$__$28$node$3a$path$2c$__cjs$29$__ = __turbopack_import__("[externals]/node:path [external] (node:path, cjs)");
 ;
 ;
-const configPath = __TURBOPACK__imported__module__$5b$externals$5d2f$node$3a$path__$5b$external$5d$__$28$node$3a$path$2c$__cjs$29$__["default"].join(process.cwd(), "../../postcss.config.js");
+const configPath = __TURBOPACK__imported__module__$5b$externals$5d2f$node$3a$path__$5b$external$5d$__$28$node$3a$path$2c$__cjs$29$__["default"].join(process.cwd(), "./postcss.config.js");
 // Absolute paths don't work with ESM imports on Windows:
 // https://github.com/nodejs/node/issues/31710
 // convert it to a file:// URL, which works on all platforms
@@ -71,7 +71,7 @@ __turbopack_esm__({
     "init": (()=>init)
 });
 // @ts-ignore
-var __TURBOPACK__imported__module__$5b$project$5d2f$my$2d$app$2f$frontend$2f$node_modules$2f2e$pnpm$2f$postcss$40$8$2e$5$2e$1$2f$node_modules$2f$postcss$2f$lib$2f$postcss$2e$mjs__$5b$postcss$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/my-app/frontend/node_modules/.pnpm/postcss@8.5.1/node_modules/postcss/lib/postcss.mjs [postcss] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$postcss$40$8$2e$5$2e$1$2f$node_modules$2f$postcss$2f$lib$2f$postcss$2e$mjs__$5b$postcss$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/node_modules/.pnpm/postcss@8.5.1/node_modules/postcss/lib/postcss.mjs [postcss] (ecmascript)");
 // @ts-ignore
 var __TURBOPACK__imported__module__$5b$project$5d2f$postcss$2e$config$2e$js_$2e$loader$2e$mjs__$5b$postcss$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/postcss.config.js_.loader.mjs [postcss] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$externals$5d2f$path__$5b$external$5d$__$28$path$2c$__cjs$29$__ = __turbopack_import__("[externals]/path [external] (path, cjs)");
@@ -134,7 +134,7 @@ const init = async (ipc)=>{
         }
         return plugin;
     });
-    processor = (0, __TURBOPACK__imported__module__$5b$project$5d2f$my$2d$app$2f$frontend$2f$node_modules$2f2e$pnpm$2f$postcss$40$8$2e$5$2e$1$2f$node_modules$2f$postcss$2f$lib$2f$postcss$2e$mjs__$5b$postcss$5d$__$28$ecmascript$29$__["default"])(loadedPlugins);
+    processor = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$postcss$40$8$2e$5$2e$1$2f$node_modules$2f$postcss$2f$lib$2f$postcss$2e$mjs__$5b$postcss$5d$__$28$ecmascript$29$__["default"])(loadedPlugins);
 };
 async function transform(ipc, cssContent, name) {
     const { css, map, messages } = await processor.process(cssContent, {
