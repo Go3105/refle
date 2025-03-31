@@ -27,9 +27,11 @@
         "next-env.d.ts",
         ".next/types/**/*.ts",
         "**/*.ts",
-        "**/*.tsx"
+        "**/*.tsx",
+        "../layout.tsx",
+        "../page.tsx"
     ],
     "exclude": [
-        "node_modules"
+        "../../node_modulesodules"
     ]
 }

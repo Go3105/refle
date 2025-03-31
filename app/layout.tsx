@@ -1,4 +1,4 @@
-import './components/global.css';
+import './frontend/components/global.css';
 import { inter } from './components/fonts';
 import { Metadata } from 'next';
 
