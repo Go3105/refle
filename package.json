@@ -4,9 +4,9 @@
         "build": "next build",
         "dev": "next dev --turbopack",
         "start": "next start",
-        "pages:build": "npx @cloudflare/next-on-pages",
-        "preview": "npm run pages:build && wrangler pages dev",
-        "deploy": "npm run pages:build && wrangler pages deploy"
+        "pages:build": "pnpx @cloudflare/next-on-pages",
+        "preview": "pnpm run pages:build && wrangler pages dev",
+        "deploy": "pnpm run pages:build && wrangler pages deploy"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
