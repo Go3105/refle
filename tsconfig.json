@@ -21,7 +21,8 @@
             {
                 "name": "next"
             }
-        ]
+        ],
+        "strictNullChecks": true
     },
     "include": [
         "next-env.d.ts",
@@ -31,5 +32,5 @@
     ],
     "exclude": [
         "app/node_modules"
-    ],
+    ]
 }
