@@ -23,6 +23,8 @@
         "postgres": "^3.4.5",
         "react": "latest",
         "react-dom": "latest",
+        "socket.io": "^4.8.1",
+        "socket.io-client": "^4.8.1",
         "tailwindcss": "3.4.17",
         "typescript": "5.7.3",
         "use-debounce": "^10.0.4",
