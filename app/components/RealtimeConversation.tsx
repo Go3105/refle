@@ -42,9 +42,9 @@ export default function RealtimeConversation() {
         // Socket.IOクライアントを作成
         const socket = io('', {
           path: '/api/socketio',
-          reconnectionAttempts: 5,
+          reconnectionAttempts: 10,
           reconnectionDelay: 1000,
-          timeout: 20000,
+          timeout: 60000,
           transports: ['websocket', 'polling'],
           autoConnect: true
         });
