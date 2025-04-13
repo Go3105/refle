@@ -1,5 +1,5 @@
-import './components/global.css';
-import { inter } from './components/fonts';
+import './styles/global.css';
+import { inter } from './styles/fonts';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
