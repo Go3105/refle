@@ -7,6 +7,8 @@ export default function SettingsPage() {
     const [notifications, setNotifications] = useState(true);
     const [theme, setTheme] = useState('light');
     const [language, setLanguage] = useState('ja');
+    const [showInput, setShowInput] = useState(false);
+    const [notionDatabaseId, setNotionDatabaseId] = useState('');
 
     return (
         <main className="min-h-screen p-8">
@@ -51,6 +53,25 @@ export default function SettingsPage() {
                             <option value="ja">日本語</option>
                             <option value="en">English</option>
                         </select>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="block mb-2">NotionデータベースID</label>
+                        <div className="flex items-center">
+                            <input
+                                type="text"
+                                value={notionDatabaseId}
+                                onChange={(e) => setNotionDatabaseId(e.target.value)}
+                                placeholder="NotionデータベースIDを入力してください"
+                                className="w-full p-2 border rounded mr-2"
+                            />
+                            <button
+                                onClick={() => alert('Notion Database ID registered: ' + notionDatabaseId)}
+                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                            >
+                                登録
+                            </button>
+                        </div>
                     </div>
                 </div>
 
