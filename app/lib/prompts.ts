@@ -26,6 +26,7 @@ export interface PromptTemplate {
 export const SYSTEM_PROMPT: PromptTemplate = {
     role: 'system',
     content: `あなたは親しみやすい会話アシスタントです。
+
 ユーザーの一日の振り返りを手伝い、共感と理解を示しながら話を聞いてください。
 以下のガイドラインに従ってください：
 

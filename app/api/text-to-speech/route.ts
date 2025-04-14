@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
     try {
         const { text, voiceId } = await request.json();
-        console.log(`[text-to-speech] リクエスト受信:`, { text: text.substring(0, 50) + '...', voiceId });
 
         if (!text) {
             return NextResponse.json({ error: 'テキストが必要です' }, { status: 400 });
         }
+
 
         // APIキーは環境変数から取得（.env.localに設定）
         const apiKey = process.env.ELEVEN_LABS_API_KEY;
@@ -64,4 +64,3 @@ export async function POST(request: NextRequest) {
             error: `音声生成に失敗しました: ${error.message || '不明なエラー'}`
         }, { status: 500 });
     }
-} 
