@@ -17,7 +17,7 @@ export default function Page() {
             <div className="absolute top-4 right-4">
                 <AccountMenu />
             </div>
-            
+
             {!showConversation ? (
                 // 初期画面
                 <div className="flex flex-col justify-center items-center h-full">
