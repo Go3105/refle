@@ -37,5 +37,5 @@ next-env.d.ts
 /lib/placeholder-data.ts
 
 # rules
-/rules/
-
+/rules/*
+/rules/.*   
