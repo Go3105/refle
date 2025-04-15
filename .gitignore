@@ -36,6 +36,7 @@ yarn-error.log*
 next-env.d.ts
 /lib/placeholder-data.ts
 
-# rules
-/rules/*
-/rules/.*   
+# Cursor
+.cursor/
+.cursor/*
+.cursor/.*
