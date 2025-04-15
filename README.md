@@ -28,6 +28,8 @@ npm install
 # docs/[ドキュメント名] - ドキュメント更新
 # refactor/[リファクタリング内容] - コードリファクタリング
 # voice/[機能名] - 音声関連機能
+# hotfix/[修正内容] - 細かい修正
+
 
 git checkout -b [ブランチ名]
 ```

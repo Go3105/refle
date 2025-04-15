@@ -14,8 +14,8 @@
  * @property content - メッセージの内容
  */
 export interface PromptTemplate {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+    role: 'system' | 'user' | 'assistant';
+    content: string;
 }
 
 /**
@@ -24,6 +24,7 @@ export interface PromptTemplate {
  * このプロンプトは会話の最初に送信され、AIの応答スタイルや機能を設定します
  */
 export const SYSTEM_PROMPT: PromptTemplate = {
+
   role: 'system',
   content: `プロの1on1コーチです。
 ユーザーの一日の振り返りを手伝ってください。
@@ -54,11 +55,11 @@ export const DEFAULT_WELCOME_MESSAGE = 'こんにちは、今日は何をしま�
  * @returns 初期会話履歴の配列（システムプロンプト＋初期AIメッセージ）
  */
 export function createInitialConversationHistory(): PromptTemplate[] {
-  return [
-    SYSTEM_PROMPT,
-    {
-      role: 'assistant',
-      content: DEFAULT_WELCOME_MESSAGE
-    }
-  ];
+    return [
+        SYSTEM_PROMPT,
+        {
+            role: 'assistant',
+            content: DEFAULT_WELCOME_MESSAGE
+        }
+    ];
 } 

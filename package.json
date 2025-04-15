@@ -10,10 +10,13 @@
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
+        "@notionhq/client": "^2.3.0",
         "@tailwindcss/forms": "^0.5.10",
         "autoprefixer": "10.4.20",
+        "axios": "^1.8.4",
         "bcryptjs": "^3.0.2",
         "clsx": "^2.1.1",
+        "dotenv": "^16.5.0",
         "elevenlabs": "^1.56.1",
         "install": "^0.13.0",
         "lint": "^0.8.19",
