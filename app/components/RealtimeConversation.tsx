@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { EchoCancellation } from '@/lib/echoCancellation';
 
 // Socket.IOの型定義のみをインポート
 import type { Socket } from 'socket.io-client';
@@ -40,6 +41,7 @@ export default function RealtimeConversation() {
   const recognitionRef = useRef<any>(null);                   // SpeechRecognitionインスタンス
   const messagesEndRef = useRef<HTMLDivElement>(null);        // メッセージ末尾への参照（自動スクロール用）
   const audioRef = useRef<HTMLAudioElement | null>(null);     // 音声再生用Audio要素
+  const echoCancellationRef = useRef<EchoCancellation | null>(null);
   
   /**
    * マウント状態の追跡
@@ -113,12 +115,6 @@ export default function RealtimeConversation() {
         socket.on('connect', () => {
           console.log('Socket.IO接続成功:', socket.id);
           setIsConnected(true);
-          
-          // 初期メッセージを表示
-          setMessages([{
-            role: 'assistant',
-            content: 'こんにちは！'
-          }]);
           
           // 接続成功時に音声認識の初期化と開始（一度だけ）
           if (!speechInitialized && isMounted) {
@@ -461,6 +457,9 @@ export default function RealtimeConversation() {
       // 音声認識オブジェクトを保存
       recognitionRef.current = recognition;
       
+      // エコーキャンセリングの初期化
+      echoCancellationRef.current = new EchoCancellation();
+      
       // イベントハンドラーの設定後、少し遅延させてから開始を試みる
       setTimeout(() => {
         console.log('初期化後、音声認識の開始を試みます');
@@ -513,7 +512,7 @@ export default function RealtimeConversation() {
    * Web Speech APIを使用して音声認識を開始し、状態を更新する
    * 失敗した場合は自動的に再試行する
    */
-  const startListening = () => {
+  const startListening = async () => {
     // 音声認識が利用可能かチェック
     if (!recognitionRef.current) {
       console.log('音声認識を開始できません: SpeechRecognitionが初期化されていません');
@@ -544,6 +543,15 @@ export default function RealtimeConversation() {
     setIsListening(true);
     
     try {
+      // マイクへのアクセスを取得
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // エコーキャンセリングを開始
+      if (echoCancellationRef.current && audioRef.current) {
+        const audioStream = (audioRef.current as any).captureStream();
+        await echoCancellationRef.current.start(stream, audioStream);
+      }
+      
       // まずフラグを設定
       recognitionRef.current.running = true;
       
@@ -605,6 +613,11 @@ export default function RealtimeConversation() {
       }
     } catch (error) {
       console.error('音声認識停止エラー:', error);
+    }
+    
+    // エコーキャンセリングを停止
+    if (echoCancellationRef.current) {
+      echoCancellationRef.current.stop();
     }
   };
   
@@ -671,6 +684,11 @@ export default function RealtimeConversation() {
     setCurrentTranscript('');
     setIsProcessing(false);
     setIsConnected(false);
+    
+    // エコーキャンセリングを停止
+    if (echoCancellationRef.current) {
+      echoCancellationRef.current.stop();
+    }
   };
 
   /**
