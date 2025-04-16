@@ -1,6 +1,9 @@
 import './styles/global.css';
 import { inter } from './styles/fonts';
 import { Metadata } from 'next';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/auth';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
     title: {
@@ -11,7 +14,7 @@ export const metadata: Metadata = {
     metadataBase: new URL('https://next-learn-dashboard.vercel.sh'),
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;
