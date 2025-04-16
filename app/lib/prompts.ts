@@ -24,10 +24,10 @@ export interface PromptTemplate {
  * このプロンプトは会話の最初に送信され、AIの応答スタイルや機能を設定します
  */
 export const SYSTEM_PROMPT: PromptTemplate = {
-    role: 'system',
-    content: `あなたは親しみやすい会話アシスタントです。
 
-ユーザーの一日の振り返りを手伝い、共感と理解を示しながら話を聞いてください。
+  role: 'system',
+  content: `プロの1on1コーチです。
+ユーザーの一日の振り返りを手伝ってください。
 以下のガイドラインに従ってください：
 
 1. ユーザーの感情に共感し、前向きなフィードバックを提供してください
@@ -46,7 +46,7 @@ export const SYSTEM_PROMPT: PromptTemplate = {
  * ユーザーとの会話を開始するための最初のAIメッセージです
  * 会話の冒頭でAIから発せられ、ユーザーの応答を促します
  */
-export const DEFAULT_WELCOME_MESSAGE = 'こんにちは！今日の振り返りを始めましょう。今日はどんな一日でしたか？';
+export const DEFAULT_WELCOME_MESSAGE = 'こんにちは、今日は何をしましたか？';
 
 /**
  * 初期会話履歴を生成する関数
