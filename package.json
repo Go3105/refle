@@ -21,7 +21,7 @@
         "install": "^0.13.0",
         "lint": "^0.8.19",
         "next": "latest",
-        "next-auth": "^4.24.11",
+        "next-auth": "^5.0.0-beta.25",
         "postcss": "8.5.1",
         "postgres": "^3.4.5",
         "react": "latest",
