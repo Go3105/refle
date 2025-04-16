@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import AccountMenu from './components/AccountMenu';
 import RealtimeConversation from './components/RealtimeConversation';
+import { SignOutButton } from './components/SignOutButton';
 
 export default function Page() {
     const [showConversation, setShowConversation] = useState(false);
@@ -14,7 +15,8 @@ export default function Page() {
 
     return (
         <main className="flex flex-col h-screen">
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4 right-4 flex items-center">
+                <SignOutButton className="mr-4" />
                 <AccountMenu />
             </div>
 

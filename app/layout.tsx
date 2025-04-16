@@ -2,6 +2,7 @@ import './styles/global.css';
 import { inter } from './styles/fonts';
 import { Metadata } from 'next';
 
+
 export const metadata: Metadata = {
     title: {
         template: '%s | Acme Dashboard',
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
     metadataBase: new URL('https://next-learn-dashboard.vercel.sh'),
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;
