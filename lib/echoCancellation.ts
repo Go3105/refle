@@ -2,6 +2,14 @@
  * エコーキャンセリング機能を提供するユーティリティ
  */
 
+declare global {
+    interface Window {
+        webkitAudioContext?: {
+            new(): AudioContext;
+        };
+    }
+}
+
 export class EchoCancellation {
     private audioContext: AudioContext;
     private inputStream: MediaStream | null = null;
@@ -17,7 +25,7 @@ export class EchoCancellation {
     private echoDelay: number = 100; // エコーの遅延時間（ミリ秒）
 
     constructor() {
-        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext!)();
     }
 
     /**
