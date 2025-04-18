@@ -1,6 +1,12 @@
 import './styles/global.css';
-import { inter } from './styles/fonts';
 import { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({
+    subsets: ['latin'],
+    display: 'swap',
+    preload: false,
+});
 
 export const metadata: Metadata = {
     title: {
@@ -17,7 +23,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en">
+        <html lang="ja">
             <body
                 className={`${inter.className} antialiased`}
                 style={{ overscrollBehaviorX: "auto" }}
