@@ -54,7 +54,7 @@ interface MySpeechRecognition extends EventTarget {
     startPending: boolean;
     start(): void;
     stop(): void;
-    onresult: ((event: any) => void) | null;
+    onresult: ((event: Event) => void) | null;
     onend: (() => void) | null;
     onaudioend: (() => void) | null;
     onspeechstart: (() => void) | null;
