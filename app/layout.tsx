@@ -8,6 +8,7 @@ const inter = Inter({
     preload: false,
 });
 
+
 export const metadata: Metadata = {
     title: {
         template: '%s | Acme Dashboard',
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
     metadataBase: new URL('https://next-learn-dashboard.vercel.sh'),
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;

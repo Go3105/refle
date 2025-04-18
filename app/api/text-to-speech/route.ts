@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -64,3 +66,4 @@ export async function POST(request: NextRequest) {
             error: `音声生成に失敗しました: ${error.message || '不明なエラー'}`
         }, { status: 500 });
     }
+}

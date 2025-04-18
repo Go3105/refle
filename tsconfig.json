@@ -25,7 +25,9 @@
         "strictNullChecks": true,
         "baseUrl": ".",
         "paths": {
-            "@/*": ["./*"]
+            "@/*": [
+                "./*"
+            ]
         }
     },
     "include": [
@@ -38,4 +40,3 @@
         "app/node_modules"
     ]
 }
-

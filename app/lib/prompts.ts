@@ -25,8 +25,8 @@ export interface PromptTemplate {
  */
 export const SYSTEM_PROMPT: PromptTemplate = {
 
-  role: 'system',
-  content: `プロの1on1コーチです。
+    role: 'system',
+    content: `プロの1on1コーチです。
 ユーザーの一日の振り返りを手伝ってください。
 
 従うガイドライン：

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import AccountMenu from './components/AccountMenu';
 import RealtimeConversation from './components/RealtimeConversation';
+import { SignOutButton } from './components/SignOutButton';
 
 export default function Page() {
     const [showConversation, setShowConversation] = useState(false);
@@ -15,7 +16,8 @@ export default function Page() {
 
     return (
         <main className="flex flex-col h-screen">
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4 right-4 flex items-center">
+                <SignOutButton className="mr-4" />
                 <AccountMenu />
             </div>
 
@@ -50,9 +52,18 @@ export default function Page() {
     );
 }
 
-declare global {
-    interface Window {
-        SpeechRecognition: any;
-        webkitSpeechRecognition: any;
-    }
+// Web Speech API 型定義（最低限）
+interface MySpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    running: boolean;
+    startPending: boolean;
+    start(): void;
+    stop(): void;
+    onresult: ((event: Event) => void) | null;
+    onend: (() => void) | null;
+    onaudioend: (() => void) | null;
+    onspeechstart: (() => void) | null;
+    onspeechend: (() => void) | null;
 }
