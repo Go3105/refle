@@ -15,6 +15,7 @@ import { Server } from 'socket.io';
 import {
     createInitialConversationHistory
 } from '../../app/lib/prompts';
+export const runtime = 'edge';
 
 /**
  * Socket.IO APIハンドラー
