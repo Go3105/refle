@@ -9,6 +9,8 @@
         "deploy": "npm run pages:build && wrangler pages deploy"
     },
     "dependencies": {
+        "@google/genai": "^0.9.0",
+        "@google/generative-ai": "^0.24.0",
         "@heroicons/react": "^2.2.0",
         "@notionhq/client": "^2.3.0",
         "@tailwindcss/forms": "^0.5.10",
@@ -20,6 +22,7 @@
         "elevenlabs": "^1.56.1",
         "install": "^0.13.0",
         "lint": "^0.8.19",
+        "mime": "^4.0.7",
         "next": "latest",
         "next-auth": "^5.0.0-beta.25",
         "postcss": "8.5.1",
@@ -36,7 +39,7 @@
     "devDependencies": {
         "@cloudflare/next-on-pages": "^1.13.12",
         "@types/bcrypt": "^5.0.2",
-        "@types/node": "22.10.7",
+        "@types/node": "^22.10.7",
         "@types/react": "19.0.7",
         "@types/react-dom": "19.0.3",
         "eslint": "^9.22.0",
