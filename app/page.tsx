@@ -45,9 +45,18 @@ export default function Page() {
     );
 }
 
-declare global {
-    interface Window {
-        SpeechRecognition: any;
-        webkitSpeechRecognition: any;
-    }
+// Web Speech API 型定義（最低限）
+interface MySpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    running: boolean;
+    startPending: boolean;
+    start(): void;
+    stop(): void;
+    onresult: ((event: any) => void) | null;
+    onend: (() => void) | null;
+    onaudioend: (() => void) | null;
+    onspeechstart: (() => void) | null;
+    onspeechend: (() => void) | null;
 }

@@ -1,12 +1,6 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 
-declare global {
-    interface Window {
-        webkitAudioContext?: typeof AudioContext;
-    }
-}
-
 export const { auth, handlers, signIn, signOut } = NextAuth({
     providers: [
         Google({
