@@ -28,21 +28,42 @@ interface Message {
 }
 
 // 型定義がなければグローバル宣言
-// @ts-ignore
+// Web Speech API 型定義（最低限）
+interface MySpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    running: boolean;
+    startPending: boolean;
+    start(): void;
+    stop(): void;
+    onresult: ((event: MySpeechRecognitionEvent) => void) | null;
+    onend: (() => void) | null;
+    onaudioend: (() => void) | null;
+    onspeechstart: (() => void) | null;
+    onspeechend: (() => void) | null;
+}
+interface MySpeechRecognitionEvent extends Event {
+    results: MySpeechRecognitionResultList;
+}
+interface MySpeechRecognitionResultList {
+    length: number;
+    [index: number]: MySpeechRecognitionResult;
+}
+interface MySpeechRecognitionResult {
+    0: MySpeechRecognitionAlternative;
+    isFinal: boolean;
+    length: number;
+}
+interface MySpeechRecognitionAlternative {
+    transcript: string;
+    confidence: number;
+}
 declare global {
     interface Window {
-        SpeechRecognition: typeof SpeechRecognition;
-        webkitSpeechRecognition: typeof SpeechRecognition;
+        SpeechRecognition: { new(): MySpeechRecognition };
+        webkitSpeechRecognition: { new(): MySpeechRecognition };
     }
-    // 型がなければanyで定義
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var SpeechRecognition: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var webkitSpeechRecognition: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    type SpeechRecognition = any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    type SpeechRecognitionEvent = any;
 }
 
 export default function RealtimeConversation() {
@@ -56,7 +77,7 @@ export default function RealtimeConversation() {
 
     // Refオブジェクト
     const socketRef = useRef<Socket | null>(null);              // Socket.IOインスタンス
-    const recognitionRef = useRef<SpeechRecognition | null>(null);                   // SpeechRecognitionインスタンス
+    const recognitionRef = useRef<MySpeechRecognition | null>(null);                   // SpeechRecognitionインスタンス
     const messagesEndRef = useRef<HTMLDivElement>(null);        // メッセージ末尾への参照（自動スクロール用）
     const audioRef = useRef<HTMLAudioElement | null>(null);     // 音声再生用Audio要素
     const echoCancellationRef = useRef<EchoCancellation | null>(null);
@@ -383,13 +404,13 @@ export default function RealtimeConversation() {
              * 音声認識結果イベントハンドラー
              * 音声認識結果を取得し、確定結果の場合はメッセージとして送信
              */
-            recognition.onresult = (event: SpeechRecognitionEvent) => {
+            recognition.onresult = (event: MySpeechRecognitionEvent) => {
                 const results = Array.from(event.results);
                 const transcript = results
-                    .map((result: SpeechRecognitionResult) => result[0])
-                    .map((result: SpeechRecognitionAlternative) => result.transcript)
+                    .map((result: MySpeechRecognitionResult) => result[0])
+                    .map((result: MySpeechRecognitionAlternative) => result.transcript)
                     .join('');
-                const isFinal = results.some((result: SpeechRecognitionResult) => result.isFinal);
+                const isFinal = results.some((result: MySpeechRecognitionResult) => result.isFinal);
 
                 console.log('音声認識結果:', transcript, isFinal ? '(確定)' : '(中間)');
                 setCurrentTranscript(transcript);
@@ -562,7 +583,7 @@ export default function RealtimeConversation() {
 
             // エコーキャンセリングを開始
             if (echoCancellationRef.current && audioRef.current) {
-                const audioStream = (audioRef.current as any).captureStream();
+                const audioStream = (audioRef.current as HTMLAudioElement & { captureStream: () => MediaStream }).captureStream();
                 await echoCancellationRef.current.start(stream, audioStream);
             }
 
