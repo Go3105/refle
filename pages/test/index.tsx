@@ -1,22 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 
 type Message = {
   role: 'user' | 'assistant';
   content: string;
+  timestamp: Date;
+};
+
+const formatElapsedTime = (startTime: Date, currentTime: Date): string => {
+  const elapsedSeconds = Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  return `${minutes}分${seconds}秒`;
 };
 
 export default function TestPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userMessage: Message = { role: 'user', content: input };
+    const currentTime = new Date();
+    if (!conversationStartTime) {
+      setConversationStartTime(currentTime);
+    }
+
+    const userMessage: Message = { 
+      role: 'user', 
+      content: input,
+      timestamp: currentTime
+    };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -33,14 +51,16 @@ export default function TestPage() {
       
       const assistantMessage: Message = { 
         role: 'assistant', 
-        content: data.response 
+        content: data.response,
+        timestamp: new Date()
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
       const errorMessage: Message = { 
         role: 'assistant', 
-        content: 'エラーが発生しました。もう一度お試しください。' 
+        content: 'エラーが発生しました。もう一度お試しください。',
+        timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
     }
@@ -57,6 +77,7 @@ export default function TestPage() {
         body: JSON.stringify({ reset: true }),
       });
       setMessages([]);
+      setConversationStartTime(null);
     } catch (error) {
       console.error('Error resetting conversation:', error);
     }
@@ -102,14 +123,21 @@ export default function TestPage() {
                       </div>
                     )}
                   </div>
-                  <div
-                    className={`p-3 rounded-lg ${
-                      message.role === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white text-gray-800 shadow-sm'
-                    }`}
-                  >
-                    {message.content}
+                  <div className="flex flex-col">
+                    <div
+                      className={`p-3 rounded-lg ${
+                        message.role === 'user'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white text-gray-800 shadow-sm'
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                    {conversationStartTime && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        開始から {formatElapsedTime(conversationStartTime, message.timestamp)}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
