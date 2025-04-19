@@ -1,10 +1,15 @@
-export const runtime = 'edge';
+export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 import { createInitialConversationHistory, PromptTemplate } from '@/app/lib/prompts';
 
 // 会話履歴を保持するための変数（本番環境ではデータベース等を使用することを推奨）
 let conversationHistory: PromptTemplate[] = createInitialConversationHistory();
+
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+});
 
 export async function POST(request: NextRequest) {
     try {
@@ -27,42 +32,32 @@ export async function POST(request: NextRequest) {
         conversationHistory.push({ role: 'user', content: message });
         console.log('ユーザー:', message);
 
-        const apiKey = process.env.GEMINI_API_KEY;
+        const config = {
+            responseMimeType: 'text/plain',
+            temperature: 0.7,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 800,
+            stopSequences: [],
+        };
         const model = 'gemini-2.0-flash-lite';
 
-        // Gemini API用のリクエストデータを作成
+        // 会話履歴をGeminiの形式に変換
         const contents = conversationHistory.map(msg => ({
             role: msg.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: msg.content }]
         }));
 
-        const body = {
+        const response = await ai.models.generateContentStream({
+            model,
+            config,
             contents,
-            generationConfig: {
-                temperature: 0.7,
-                topP: 0.95,
-                topK: 40,
-                maxOutputTokens: 800,
-                stopSequences: [],
-            }
-        };
+        });
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json({ error: errorText }, { status: response.status });
+        let fullResponse = '';
+        for await (const chunk of response) {
+            fullResponse += chunk.text;
         }
-
-        const data = await response.json();
-        const fullResponse = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
         // AIの応答を履歴に追加
         conversationHistory.push({ role: 'assistant', content: fullResponse });
