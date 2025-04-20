@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
-import Image from 'next/image';
+import { createInitialConversationHistory, getCurrentPhase, formatElapsedTime } from '@/app/lib/prompts';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -8,11 +8,9 @@ type Message = {
   timestamp: Date;
 };
 
-const formatElapsedTime = (startTime: Date, currentTime: Date): string => {
+const formatMessageElapsedTime = (startTime: Date, currentTime: Date): string => {
   const elapsedSeconds = Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
-  const minutes = Math.floor(elapsedSeconds / 60);
-  const seconds = elapsedSeconds % 60;
-  return `${minutes}分${seconds}秒`;
+  return formatElapsedTime(elapsedSeconds);
 };
 
 export default function TestPage() {
@@ -20,13 +18,55 @@ export default function TestPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<string>('');
+  useEffect(() => {
+    const resetConversation = async () => {
+      try {
+        console.log('会話をリセット中...');
+        const response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ reset: true }),
+        });
+        const data = await response.json();
+        console.log('APIリセット応答:', data);
+        
+        setMessages([]);
+        setConversationStartTime(null);
+        setCurrentPhase('');
+        console.log('会話がリセットされました');
+      } catch (error) {
+        console.error('会話のリセット中にエラーが発生しました:', error);
+      }
+    };
+
+    resetConversation();
+  }, []);
+
+  useEffect(() => {
+    if (!conversationStartTime) return;
+
+    const updatePhase = () => {
+      const currentTime = new Date();
+      const elapsedSeconds = Math.floor((currentTime.getTime() - conversationStartTime.getTime()) / 1000);
+      const phase = getCurrentPhase(elapsedSeconds);
+      setCurrentPhase(phase);
+    };
+
+    const interval = setInterval(updatePhase, 1000);
+    return () => clearInterval(interval);
+  }, [conversationStartTime]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
     const currentTime = new Date();
-    if (!conversationStartTime) {
+    const isFirstMessage = !conversationStartTime;
+    
+    if (isFirstMessage) {
       setConversationStartTime(currentTime);
     }
 
@@ -40,12 +80,18 @@ export default function TestPage() {
     setIsLoading(true);
 
     try {
+      const elapsedSeconds = isFirstMessage ? 0 : 
+        Math.floor((currentTime.getTime() - conversationStartTime!.getTime()) / 1000);
+
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ 
+          message: input,
+          elapsedSeconds
+        }),
       });
       const data = await res.json();
       
@@ -78,6 +124,7 @@ export default function TestPage() {
       });
       setMessages([]);
       setConversationStartTime(null);
+      setCurrentPhase('');
     } catch (error) {
       console.error('Error resetting conversation:', error);
     }
@@ -86,13 +133,13 @@ export default function TestPage() {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <Head>
-        <title>Gemini AI 会話精度検証</title>
+        <title>会話精度検証</title>
       </Head>
       
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex flex-col">
           <div className="p-4 border-b bg-white flex justify-between items-center">
-            <h1 className="text-xl font-bold text-gray-900">Gemini AI 会話精度検証</h1>
+            <h1 className="text-xl font-bold text-gray-900">会話精度検証</h1>
             <button
               onClick={handleReset}
               className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -135,7 +182,7 @@ export default function TestPage() {
                     </div>
                     {conversationStartTime && (
                       <div className="text-xs text-gray-500 mt-1">
-                        開始から {formatElapsedTime(conversationStartTime, message.timestamp)}
+                        開始から {formatMessageElapsedTime(conversationStartTime, message.timestamp)}
                       </div>
                     )}
                   </div>
@@ -177,6 +224,11 @@ export default function TestPage() {
                   送信
                 </button>
               </div>
+              {currentPhase && (
+                <div className="mt-2 text-sm text-gray-500">
+                  現在のフェーズ: {currentPhase}
+                </div>
+              )}
             </form>
           </div>
         </div>
