@@ -8,7 +8,54 @@ export default function SettingsPage() {
     const [theme, setTheme] = useState('light');
     const [language, setLanguage] = useState('ja');
     const [showInput, setShowInput] = useState(false);
+    const [notionApiToken, setNotionApiToken] = useState('');
     const [notionDatabaseId, setNotionDatabaseId] = useState('');
+
+    // Notion API Tokenの変更ボタン押下時
+    const handleApiTokenChange = async () => {
+        if (!notionApiToken) {
+            alert('Notion API Tokenを入力してください');
+            return;
+        }
+        try {
+            const res = await fetch('/api/notion/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notion_api_token: notionApiToken })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert('Notion API Tokenが変更されました');
+            } else {
+                alert(data.error || 'エラーが発生しました');
+            }
+        } catch (e) {
+            alert('通信エラーが発生しました');
+        }
+    };
+
+    // Notion Database IDの変更ボタン押下時
+    const handleDatabaseIdChange = async () => {
+        if (!notionDatabaseId) {
+            alert('Notion Database IDを入力してください');
+            return;
+        }
+        try {
+            const res = await fetch('/api/notion/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notion_database_id: notionDatabaseId })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert('Notion Database IDが変更されました');
+            } else {
+                alert(data.error || 'エラーが発生しました');
+            }
+        } catch (e) {
+            alert('通信エラーが発生しました');
+        }
+    };
 
     return (
         <main className="min-h-screen p-8">
@@ -17,31 +64,6 @@ export default function SettingsPage() {
 
                 <div className="bg-white p-6 rounded-lg shadow-md mb-6">
                     <h2 className="text-lg font-semibold mb-4">アプリ設定</h2>
-
-                    <div className="mb-4">
-                        <label className="flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={notifications}
-                                onChange={() => setNotifications(!notifications)}
-                                className="w-4 h-4 mr-2"
-                            />
-                            <span>通知を受け取る</span>
-                        </label>
-                    </div>
-
-                    <div className="mb-4">
-                        <label className="block mb-2">テーマ</label>
-                        <select
-                            value={theme}
-                            onChange={(e) => setTheme(e.target.value)}
-                            className="w-full p-2 border rounded"
-                        >
-                            <option value="light">ライト</option>
-                            <option value="dark">ダーク</option>
-                            <option value="system">システム設定に合わせる</option>
-                        </select>
-                    </div>
 
                     <div className="mb-4">
                         <label className="block mb-2">言語</label>
@@ -56,7 +78,26 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="mb-4">
-                        <label className="block mb-2">NotionデータベースID</label>
+                        <label className="block mb-2">Notion API Token</label>
+                        <div className="flex items-center">
+                            <input
+                                type="text"
+                                value={notionApiToken}
+                                onChange={(e) => setNotionApiToken(e.target.value)}
+                                placeholder="Notion API Tokenを入力してください"
+                                className="w-full p-2 border rounded mr-2"
+                            />
+                            <button
+                                onClick={handleApiTokenChange}
+                                className="bg-green-500 text-white px-2 py-2 rounded hover:bg-green-600"
+                            >
+                                変更
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="block mb-2">Notion Database ID</label>
                         <div className="flex items-center">
                             <input
                                 type="text"
@@ -66,10 +107,10 @@ export default function SettingsPage() {
                                 className="w-full p-2 border rounded mr-2"
                             />
                             <button
-                                onClick={() => alert('Notion Database ID registered: ' + notionDatabaseId)}
-                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                onClick={handleDatabaseIdChange}
+                                className="bg-green-500 text-white px-2 py-2 rounded hover:bg-green-600"
                             >
-                                登録
+                                変更
                             </button>
                         </div>
                     </div>
