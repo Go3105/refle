@@ -24,16 +24,16 @@ export interface PromptTemplate {
  */
 export const TIME_BASED_PROMPTS = {
     EARLY_STAGE: {
-        duration: { start: 0, end: 60 },
+        duration: { start: 0, end: 30 },
         prompt:  `1日の活動内容を時間軸（午前・午後、朝・昼・夕方・夜、〇〇時）でMECEで洗い出します。
 洗い出す際にはメインの活動が知れればよいです。`
     },
     MIDDLE_STAGE: {
-        duration: { start: 60, end: 540 },
+        duration: { start: 60, end: 90 },
         prompt: `洗い出した活動の中で、端的な質問で活動内容をふかぼります。深ぼる際は良かったこと→課題→次回への修正点の順で質問します`
     },
     CLOSING_STAGE: {
-        duration: { start: 540, end: 600 },
+        duration: { start: 90, end: 120 },
         prompt:  `クロージングをします `
     }
 };
@@ -50,15 +50,14 @@ export const SYSTEM_PROMPT: PromptTemplate = {
 
 現在知りたいこと: 
 {currentPhase}
-このテーマは残り{remainingTime}です
+本テーマは残り{remainingTime}です
 
 従うガイドライン：
-1. "現在知りたいこと"の目的を達成できるように質問します
-2. 残り時間を参考にタイムスケジューリングも行います
-3. 相手の言葉を引き出すための質問を続けます
-4. 相手が話した内容に関連する質問を行います
-5. 常に日本語で応答します
-6. 質問は最大30字です
+1. "現在知りたいこと"を時間内に聞き出す
+2. 相手の言葉を引き出すための質問を続けます
+3. 相手が話した内容に関連する質問を行います
+4. 常に日本語で応答します
+5. 質問は最大30字です
 
 context:
 現在の時間は{currentTime}
@@ -203,4 +202,17 @@ export function createInitialConversationHistory(sessionTime: SessionTime): Prom
     ];
 
     return baseHistory;
-} 
+}
+
+export const SUMMARY_PROMPT = {
+    role: 'system',
+    content: `以下の会話履歴を基に、以下の形式でサマリを作成してください：
+
+1. 主な活動内容
+2. 良かった点
+3. 課題点
+4. 次回への改善点
+
+会話履歴:
+{conversationHistory}`
+}; 

@@ -74,6 +74,9 @@ export default function RealtimeConversation() {
     const [currentTranscript, setCurrentTranscript] = useState(''); // 現在の音声認識テキスト
     const [isProcessing, setIsProcessing] = useState(false);     // AI処理中フラグ
     const [isInitialized, setIsInitialized] = useState(false);   // 初期化状態フラグ
+    const [summary, setSummary] = useState<string>('');          // 会話サマリ
+    const [editableSummary, setEditableSummary] = useState<string>(''); // 編集可能なサマリ
+    const [showingSummary, setShowingSummary] = useState(false); // サマリ表示状態
 
     // Refオブジェクト
     const socketRef = useRef<Socket | null>(null);              // Socket.IOインスタンス
@@ -708,22 +711,75 @@ export default function RealtimeConversation() {
             audioRef.current.currentTime = 0;
         }
 
-        // Socket.IO接続を切断
-        if (socketRef.current) {
-            socketRef.current.disconnect();
-        }
-
-        // リセット
-        setIsListening(false);
-        setMessages([]);
-        setCurrentTranscript('');
-        setIsProcessing(false);
-        setIsConnected(false);
-
         // エコーキャンセリングを停止
         if (echoCancellationRef.current) {
             echoCancellationRef.current.stop();
         }
+
+        // サマリを生成して表示
+        createSummary();
+        
+        // リセット
+        setIsListening(false);
+        setCurrentTranscript('');
+        setIsProcessing(false);
+        
+        // Socket.IO接続を切断（サマリ生成後に切断）
+        setTimeout(() => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+            setIsConnected(false);
+        }, 1000);
+    };
+
+    /**
+     * 会話サマリを生成する関数
+     * 会話履歴を基にAIがサマリを生成する
+     */
+    const createSummary = async () => {
+        try {
+            // サマリ作成中フラグを設定
+            setIsProcessing(true);
+            
+            const res = await fetch('/api/gemini', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ createSummary: true }),
+            });
+            const data = await res.json();
+            
+            // サマリをステートに保存
+            setSummary(data.summary);
+            setEditableSummary(data.summary);
+            setShowingSummary(true);
+            
+            // 処理完了
+            setIsProcessing(false);
+        } catch (error) {
+            console.error('サマリ作成エラー:', error);
+            setIsProcessing(false);
+        }
+    };
+
+    /**
+     * サマリテキストの変更ハンドラ
+     * テキストエリアの内容が変更されたときに呼び出される
+     * 
+     * @param {React.ChangeEvent<HTMLTextAreaElement>} e - イベントオブジェクト
+     */
+    const handleSummaryChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setEditableSummary(e.target.value);
+    };
+
+    /**
+     * サマリの保存ハンドラ
+     * 編集したサマリをステートに保存する
+     */
+    const handleSummarySave = () => {
+        setSummary(editableSummary);
     };
 
     /**
@@ -778,6 +834,28 @@ export default function RealtimeConversation() {
                             </div>
                         </div>
                     ))}
+                    {/* サマリ表示部分 */}
+                    {showingSummary && (
+                        <div className="mt-8 p-4 bg-white rounded-lg shadow">
+                            <h2 className="text-lg font-bold mb-2">会話のサマリ</h2>
+                            <form className="space-y-3">
+                                <textarea 
+                                    className="w-full p-2 border rounded-md min-h-[150px]"
+                                    value={editableSummary}
+                                    onChange={handleSummaryChange}
+                                ></textarea>
+                                <div className="flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={handleSummarySave}
+                                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        保存
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
                     {/* 自動スクロール用の参照ポイント */}
                     <div ref={messagesEndRef} />
                 </div>
