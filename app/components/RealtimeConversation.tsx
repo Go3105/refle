@@ -27,42 +27,49 @@ interface Message {
     content: string;             // メッセージの内容
 }
 
-// 型定義がなければグローバル宣言
-// Web Speech API 型定義（最低限）
-interface MySpeechRecognition extends EventTarget {
+// Web Speech API 型定義
+type SpeechRecognitionEvent = {
+    resultIndex: number;
+    results: {
+        [index: number]: {
+            isFinal: boolean;
+            0: {
+                transcript: string;
+                confidence: number;
+            };
+            length: number;
+        };
+        length: number;
+    };
+};
+
+type SpeechRecognitionErrorEvent = {
+    error: string;
+    message?: string;
+};
+
+interface SpeechRecognition {
     continuous: boolean;
     interimResults: boolean;
     lang: string;
-    running: boolean;
-    startPending: boolean;
+    maxAlternatives?: number;
     start(): void;
     stop(): void;
-    onresult: ((event: MySpeechRecognitionEvent) => void) | null;
+    abort?(): void;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
     onend: (() => void) | null;
     onaudioend: (() => void) | null;
+    onaudiostart: (() => void) | null;
     onspeechstart: (() => void) | null;
     onspeechend: (() => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+    onnomatch?: (() => void) | null;
 }
-interface MySpeechRecognitionEvent extends Event {
-    results: MySpeechRecognitionResultList;
-}
-interface MySpeechRecognitionResultList {
-    length: number;
-    [index: number]: MySpeechRecognitionResult;
-}
-interface MySpeechRecognitionResult {
-    0: MySpeechRecognitionAlternative;
-    isFinal: boolean;
-    length: number;
-}
-interface MySpeechRecognitionAlternative {
-    transcript: string;
-    confidence: number;
-}
+
 declare global {
     interface Window {
-        SpeechRecognition: { new(): MySpeechRecognition };
-        webkitSpeechRecognition: { new(): MySpeechRecognition };
+        SpeechRecognition: new () => SpeechRecognition;
+        webkitSpeechRecognition: new () => SpeechRecognition;
     }
 }
 
@@ -80,7 +87,7 @@ export default function RealtimeConversation() {
 
     // Refオブジェクト
     const socketRef = useRef<Socket | null>(null);              // Socket.IOインスタンス
-    const recognitionRef = useRef<MySpeechRecognition | null>(null);                   // SpeechRecognitionインスタンス
+    const recognitionRef = useRef<SpeechRecognition | null>(null); // SpeechRecognitionインスタンス
     const messagesEndRef = useRef<HTMLDivElement>(null);        // メッセージ末尾への参照（自動スクロール用）
     const audioRef = useRef<HTMLAudioElement | null>(null);     // 音声再生用Audio要素
     const echoCancellationRef = useRef<EchoCancellation | null>(null);
@@ -163,6 +170,11 @@ export default function RealtimeConversation() {
                         speechInitialized = true;
                         // 少し遅延させて音声認識を開始（ready-for-next-inputイベントからの開始に任せる）
                         console.log('音声認識の初期化を待機します...');
+
+                        // 即座に音声認識を開始（継続リスニング状態を維持）
+                        setTimeout(() => {
+                            startListening();
+                        }, 1000);
                     }
                 });
 
@@ -197,69 +209,31 @@ export default function RealtimeConversation() {
                         } else {
                             console.log('音声認識は既に実行中なので継続します');
                         }
-                    } else {
-                        // 従来のロジック（互換性のため）
-                        setTimeout(() => {
-                            // 音声認識が既に動作していなければ開始を試みる
-                            if (!isListening && !isProcessing) {
-                                console.log('音声認識を開始します（従来のモード）');
-
-                                // すぐに一回目の試行
-                                startListening();
-
-                                // 失敗した場合のバックアップとして複数回試行
-                                setTimeout(() => {
-                                    if (!isListening && !isProcessing) {
-                                        console.log('音声認識開始バックアップ試行 (1/2)');
-                                        startListening();
-
-                                        // 最後の試行
-                                        setTimeout(() => {
-                                            if (!isListening && !isProcessing) {
-                                                console.log('音声認識開始バックアップ試行 (2/2)');
-                                                startListening();
-                                            }
-                                        }, 2000);
-                                    }
-                                }, 1000);
-                            } else {
-                                console.log('音声認識は既に実行中または処理中のため開始しません');
-                            }
-                        }, 500);
                     }
                 });
 
-                // 音声合成リクエスト
-                socket.on('speech-request', async (data) => {
-                    console.log('音声合成リクエスト:', data);
+                /**
+                 * 音声ストリーム受信イベントハンドラー
+                 * AIの応答音声データを受信したときの処理（バイナリデータをBase64デコードして再生）
+                 */
+                socket.on('audio-stream', (data) => {
+                    console.log('音声ストリーム受信:', data.text.substring(0, 30) + '...');
+                    
                     try {
-                        // 音声認識は停止せず、継続させる（エコーは気にしない）
-                        // 代わりに、音声の音量を制御する
-
-                        console.log('ElevenLabs APIリクエスト送信中...');
-                        const response = await fetch('/api/text-to-speech', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                text: data.text,
-                                voiceId: 'JBFqnCBsd6RMkjVDRZzb'
-                            })
-                        });
-
-                        if (!isMounted) return;
-
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            console.error('音声合成APIエラー:', errorData);
-                            throw new Error(`音声合成APIエラー: ${errorData.error || response.statusText}`);
+                        // Base64エンコードされた音声データをデコード
+                        const audioData = atob(data.audio);
+                        
+                        // バイナリデータに変換
+                        const byteNumbers = new Array(audioData.length);
+                        for (let i = 0; i < audioData.length; i++) {
+                            byteNumbers[i] = audioData.charCodeAt(i);
                         }
-
-                        console.log('音声合成API呼び出し成功、音声データを処理中...');
-                        const audioBlob = await response.blob();
+                        const byteArray = new Uint8Array(byteNumbers);
+                        
+                        // Blobを作成
+                        const audioBlob = new Blob([byteArray], { type: data.contentType });
                         const audioUrl = URL.createObjectURL(audioBlob);
-
+                        
                         // 既存の音声を停止
                         if (audioRef.current) {
                             try {
@@ -269,63 +243,72 @@ export default function RealtimeConversation() {
                                 console.error('既存の音声停止エラー:', error);
                             }
                         }
-
+                        
                         // 新しい音声オブジェクトを作成
                         const audio = new Audio();
-
+                        
                         // イベントハンドラを先に設定
                         audio.oncanplaythrough = () => {
                             console.log('音声再生準備完了');
                         };
-
+                        
                         audio.onended = () => {
                             console.log('音声再生が終了しました');
                             URL.revokeObjectURL(audioUrl);
-
-                            // 音声再生終了後も音声認識は継続中なので特に何もしない
                         };
-
+                        
                         audio.onerror = (error) => {
                             console.error('音声再生エラー:', error);
                             URL.revokeObjectURL(audioUrl);
+                            
+                            // エラー時はサーバーに通知
+                            if (socketRef.current) {
+                                socketRef.current.emit('tts-error', { error: 'オーディオ再生エラー' });
+                            }
                         };
-
-                        // ソースを設定してから
+                        
+                        // ソースを設定
                         audio.src = audioUrl;
                         audioRef.current = audio;
-
+                        
                         // 自動再生の問題に対処
                         try {
                             // ミュートして再生を試みる
                             audio.volume = 0;
-                            await audio.play();
-
-                            // 再生が始まったらボリュームを上げる
-                            setTimeout(() => {
-                                if (audio) {
-                                    // 徐々にボリュームを上げる
-                                    audio.volume = 0.2;
-                                    setTimeout(() => { audio.volume = 0.5; }, 50);
-                                    setTimeout(() => { audio.volume = 0.8; }, 100);
-                                    setTimeout(() => { audio.volume = 1.0; }, 150);
-                                }
-                            }, 50);
+                            audio.play().then(() => {
+                                // 再生が始まったらボリュームを上げる
+                                setTimeout(() => {
+                                    if (audio) {
+                                        // 徐々にボリュームを上げる
+                                        audio.volume = 0.2;
+                                        setTimeout(() => { audio.volume = 0.5; }, 50);
+                                        setTimeout(() => { audio.volume = 0.8; }, 100);
+                                        setTimeout(() => { audio.volume = 1.0; }, 150);
+                                    }
+                                }, 50);
+                            }).catch(playError => {
+                                console.error('音声自動再生エラー:', playError);
+                            });
                         } catch (playError) {
                             console.error('音声自動再生エラー:', playError);
                         }
                     } catch (error) {
-                        console.error('音声合成エラー:', error);
-                        // エラーメッセージをユーザーに表示
-                        setMessages(prev => [...prev, {
-                            role: 'assistant',
-                            content: '※音声合成エラーが発生しました。テキストのみで会話を続けます。'
-                        }]);
-
-                        // Socket.IOサーバーにエラーを通知
+                        console.error('音声データ処理エラー:', error);
+                        
+                        // エラー時はサーバーに通知
                         if (socketRef.current) {
                             socketRef.current.emit('tts-error', { error: error.message });
                         }
                     }
+                });
+
+                /**
+                 * 音声合成状態イベントハンドラー
+                 * 音声合成の進行状況を受信して処理
+                 */
+                socket.on('tts-status', (data) => {
+                    console.log('音声合成状態:', data);
+                    // 必要に応じてUIに表示
                 });
 
                 // エラーイベント
@@ -350,179 +333,15 @@ export default function RealtimeConversation() {
         // クリーンアップ関数
         return () => {
             isMounted = false;
+            // クリーンアップ処理
             if (socketRef.current) {
-                console.log('Socket.IO切断（クリーンアップ）');
                 socketRef.current.disconnect();
+                socketRef.current.removeAllListeners();
+                socketRef.current = null;
             }
+            stopListening();
         };
-    }, []);
-
-    /**
-     * 音声認識の初期化
-     * Web Speech APIを使用して音声認識機能を初期化し、各種イベントハンドラーを設定する
-     */
-    useEffect(() => {
-        // 初期化されていない場合は何もしない
-        if (!isInitialized) return;
-
-        console.log('音声認識の初期化を開始します...');
-
-        // ブラウザがWeb Speech APIをサポートしているか確認
-        if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-            // ブラウザ固有の実装を取得
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-            // 既存のインスタンスがあれば一旦クリーンアップ
-            if (recognitionRef.current) {
-                try {
-                    console.log('既存の音声認識インスタンスをクリーンアップします');
-                    // イベントハンドラーの解除
-                    recognitionRef.current.onend = null;
-                    recognitionRef.current.onresult = null;
-                    recognitionRef.current.onaudioend = null;
-                    recognitionRef.current.onspeechstart = null;
-                    recognitionRef.current.onspeechend = null;
-
-                    // 実行中なら停止
-                    if (recognitionRef.current.running) {
-                        recognitionRef.current.stop();
-                    }
-                } catch (error) {
-                    console.error('以前の音声認識インスタンスの停止エラー:', error);
-                }
-            }
-
-            // 新しいインスタンスを作成
-            console.log('新しい音声認識インスタンスを作成します');
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;    // 継続的な認識を有効化（認識終了後も自動的に再開）
-            recognition.interimResults = true; // 中間結果も取得（認識中のテキストをリアルタイム表示）
-            recognition.lang = 'ja-JP';        // 日本語で認識
-
-            // 状態追跡フラグを初期化
-            recognition.running = false;       // 実行中フラグ
-            recognition.startPending = false;  // 開始保留フラグ
-
-            /**
-             * 音声認識結果イベントハンドラー
-             * 音声認識結果を取得し、確定結果の場合はメッセージとして送信
-             */
-            recognition.onresult = (event: MySpeechRecognitionEvent) => {
-                const results = Array.from(event.results);
-                const transcript = results
-                    .map((result: MySpeechRecognitionResult) => result[0])
-                    .map((result: MySpeechRecognitionAlternative) => result.transcript)
-                    .join('');
-                const isFinal = results.some((result: MySpeechRecognitionResult) => result.isFinal);
-
-                console.log('音声認識結果:', transcript, isFinal ? '(確定)' : '(中間)');
-                setCurrentTranscript(transcript);
-
-                // 確定結果がある場合はメッセージを送信
-                if (isFinal && transcript.trim() && !isProcessing) {
-                    handleSendMessage(transcript);
-                }
-            };
-
-            /**
-             * 音声認識終了イベントハンドラー
-             * 音声認識が終了したときに自動的に再開する処理
-             */
-            recognition.onend = () => {
-                console.log('音声認識が終了しました');
-
-                // フラグを更新
-                if (recognition) {
-                    recognition.running = false;
-                }
-
-                // 手動で停止された場合は再開しない
-                if (isListening && !isProcessing) {
-                    console.log('音声認識を自動的に再開します');
-
-                    // 少し遅延させてから再開（連続再開防止）
-                    setTimeout(() => {
-                        if (isListening && !isProcessing) {
-                            try {
-                                recognition.running = true;
-                                recognition.start();
-                                console.log('音声認識が再開されました');
-                            } catch (error) {
-                                console.error('音声認識の自動再開に失敗:', error);
-                                if (error.message && error.message.includes('already started')) {
-                                    recognition.running = true;
-                                } else {
-                                    // 最後のリカバリー試行
-                                    setTimeout(() => {
-                                        if (isListening && !isProcessing) {
-                                            try {
-                                                recognition.running = true;
-                                                recognition.start();
-                                            } catch (lastError) {
-                                                console.error('音声認識の最終再開試行に失敗:', lastError);
-                                                recognition.running = false;
-                                                // UIを更新してユーザーに通知
-                                                setIsListening(false);
-                                            }
-                                        }
-                                    }, 500);
-                                }
-                            }
-                        }
-                    }, 300);
-                } else {
-                    console.log('音声認識は停止されました（自動再開なし）');
-                }
-            };
-
-            /**
-             * 音声検出開始イベントハンドラー
-             * ユーザーの発話開始を検出
-             */
-            recognition.onspeechstart = () => {
-                console.log('音声入力開始を検出しました');
-            };
-
-            /**
-             * 音声検出終了イベントハンドラー
-             * ユーザーの発話区切りを検出
-             */
-            recognition.onspeechend = () => {
-                console.log('音声入力の区切りを検出しました');
-                // ここでは何もしない - 自動送信はonresultのisFinalで処理
-            };
-
-            // 音声認識オブジェクトを保存
-            recognitionRef.current = recognition;
-
-            // エコーキャンセリングの初期化
-            echoCancellationRef.current = new EchoCancellation();
-
-            // イベントハンドラーの設定後、少し遅延させてから開始を試みる
-            setTimeout(() => {
-                console.log('初期化後、音声認識の開始を試みます');
-                if (!isListening && !isProcessing) {
-                    startListening();
-                }
-            }, 1000);
-        } else {
-            // ブラウザが音声認識をサポートしていない場合
-            console.error('このブラウザはWeb Speech APIをサポートしていません');
-            alert('お使いのブラウザは音声認識をサポートしていません。Chrome、Edge、Safariなどの最新ブラウザをお試しください。');
-        }
-    }, [isInitialized, isListening, isProcessing]);
-
-    /**
-     * コンポーネント初期化処理
-     * コンポーネントのマウント時に一度だけ初期化フラグを設定
-     */
-    useEffect(() => {
-        // 一度だけ初期化フラグを設定
-        if (!isInitialized) {
-            console.log('コンポーネントの初期化を開始します...');
-            setIsInitialized(true);
-        }
-    }, []);
+    }, [isListening, isProcessing]);
 
     /**
      * メッセージスクロール処理
@@ -534,128 +353,153 @@ export default function RealtimeConversation() {
     }, [messages]);
 
     /**
-     * 音声認識の開始/停止を切り替える関数
-     * ボタンクリック時に呼び出され、現在の状態に応じて音声認識を開始または停止する
+     * 音声認識の開始
+     * Web Speech APIのSpeechRecognitionを初期化し、音声認識を開始する
+     */
+    const startListening = async () => {
+        try {
+            console.log('音声認識を開始します...');
+            
+            // 既存のインスタンスがあれば停止
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch (e) {
+                    console.log('既存の音声認識セッション停止エラー:', e);
+                    // エラーは無視して続行
+                }
+            }
+
+            // ブラウザAPIのチェック
+            if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+                throw new Error('このブラウザは音声認識をサポートしていません');
+            }
+
+            // SpeechRecognitionインスタンスの生成
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+
+            // 基本設定
+            recognition.lang = 'ja-JP';          // 日本語
+            recognition.interimResults = true;   // 中間結果を有効化
+            recognition.continuous = true;       // 継続モードを有効化（重要）
+
+            // 音声認識結果イベントハンドラー
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
+                // 記事のサンプルコードを参考にした実装
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const results = event.results;
+                    if (results[i].isFinal) {
+                        console.log('音声認識確定結果:', results[i][0].transcript);
+                        
+                        // 確定結果が有効な場合のみ処理
+                        const transcript = results[i][0].transcript.trim();
+                        if (transcript.length > 1 && !isProcessing) {
+                            // メッセージリストに追加
+                            setMessages(prev => [...prev, {
+                                role: 'user',
+                                content: transcript
+                            }]);
+                            
+                            // Socket.IOで送信
+                            if (socketRef.current) {
+                                socketRef.current.emit('user-speech', transcript);
+                                setIsProcessing(true);
+                            }
+                        }
+                        
+                        // 入力欄をクリア
+                        setCurrentTranscript('');
+                    } else {
+                        // 中間結果の表示
+                        console.log('音声認識中間結果:', results[i][0].transcript);
+                        setCurrentTranscript(results[i][0].transcript);
+                    }
+                }
+            };
+
+            // 音声認識終了イベントハンドラー - 常に再開する（記事の実装を参考に）
+            recognition.onend = () => {
+                console.log('音声認識が終了しました、自動的に再開します');
+                
+                // 処理中でなければすぐに再開
+                if (!isProcessing && isMountedRef.current) {
+                    try {
+                        // 少し遅延させてから再開（連続再開防止）
+                        setTimeout(() => {
+                            recognition.start();
+                        }, 100);
+                    } catch (e) {
+                        console.error('音声認識再開エラー:', e);
+                    }
+                } else {
+                    console.log('処理中のため音声認識再開を一時停止します');
+                }
+            };
+
+            // エラーイベントハンドラー
+            recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+                console.error('音声認識エラー:', event.error);
+                
+                // 'no-speech' エラーは無視して再開を試みる（無音時の自動停止対策）
+                if (event.error === 'no-speech' && isMountedRef.current) {
+                    console.log('無音検出のため再開を試みます');
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (e) {
+                            console.error('エラー後の再開失敗:', e);
+                        }
+                    }, 100);
+                }
+            };
+
+            // 音声認識開始
+            recognition.start();
+            recognitionRef.current = recognition;
+            setIsListening(true);
+            
+        } catch (error) {
+            console.error('音声認識初期化エラー:', error);
+            setIsListening(false);
+            
+            // 'already-started' エラーは無視（既に開始されている）
+            if (error.message && error.message.includes('already started')) {
+                console.log('音声認識は既に開始されています');
+                setIsListening(true);
+            } else {
+                // 重大なエラーの場合はユーザーに通知
+                alert('音声認識の開始に失敗しました: ' + error.message);
+            }
+        }
+    };
+
+    /**
+     * 音声認識の停止
+     * 実行中の音声認識セッションを停止する
+     */
+    const stopListening = () => {
+        if (recognitionRef.current) {
+            try {
+                recognitionRef.current.stop();
+                recognitionRef.current = null;
+            } catch (e) {
+                console.error('音声認識停止エラー:', e);
+            }
+        }
+        setIsListening(false);
+        setCurrentTranscript('');
+    };
+
+    /**
+     * 音声認識のトグル操作
+     * 音声認識の開始・停止を切り替える
      */
     const toggleListening = () => {
         if (isListening) {
             stopListening();
         } else {
             startListening();
-        }
-    };
-
-    /**
-     * 音声認識を開始する関数
-     * Web Speech APIを使用して音声認識を開始し、状態を更新する
-     * 失敗した場合は自動的に再試行する
-     */
-    const startListening = async () => {
-        // 音声認識が利用可能かチェック
-        if (!recognitionRef.current) {
-            console.log('音声認識を開始できません: SpeechRecognitionが初期化されていません');
-            // 音声認識が初期化されていない場合は、初期化を試みる
-            if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-                console.log('音声認識の初期化を再試行します...');
-                setIsInitialized(false);
-                setTimeout(() => setIsInitialized(true), 500);
-            }
-            return;
-        }
-
-        // 処理中は開始しない
-        if (isProcessing) {
-            console.log('音声認識を開始できません: 処理中です');
-            return;
-        }
-
-        // 既に実行中なら何もしない
-        if (isListening || (recognitionRef.current && recognitionRef.current.running)) {
-            console.log('音声認識は既に実行中です。状態を更新するだけにします。');
-            setIsListening(true);
-            return;
-        }
-
-        console.log('音声認識を開始します...');
-        setCurrentTranscript('');
-        setIsListening(true);
-
-        try {
-            // マイクへのアクセスを取得
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-            // エコーキャンセリングを開始
-            if (echoCancellationRef.current && audioRef.current) {
-                const audioStream = (audioRef.current as HTMLAudioElement & { captureStream: () => MediaStream }).captureStream();
-                await echoCancellationRef.current.start(stream, audioStream);
-            }
-
-            // まずフラグを設定
-            recognitionRef.current.running = true;
-
-            // 直接開始を試みる
-            recognitionRef.current.start();
-            console.log('音声認識が開始されました');
-
-            // マイクへのアクセス許可を促すメッセージ（初回のみ）
-            if (!initRef.current.speechInitialized) {
-                console.log('音声認識の初回開始: マイクの許可が必要かもしれません');
-                initRef.current.speechInitialized = true;
-            }
-        } catch (error) {
-            console.error('音声認識開始エラー:', error);
-
-            // 既に開始されている場合は無視
-            if (error.message && error.message.includes('already started')) {
-                console.log('音声認識は既に開始されています');
-                recognitionRef.current.running = true;
-            } else {
-                // その他のエラーは状態をリセット
-                recognitionRef.current.running = false;
-                setIsListening(false);
-
-                // 再試行
-                setTimeout(() => {
-                    if (!isListening && !isProcessing) {
-                        console.log('音声認識再試行...');
-                        startListening();
-                    }
-                }, 1000);
-            }
-        }
-    };
-
-    /**
-     * 音声認識を停止する関数
-     * 実行中の音声認識を停止し、必要に応じて最後の認識テキストを送信する
-     */
-    const stopListening = () => {
-        if (!recognitionRef.current) {
-            console.log('音声認識を停止できません: recognitionRef不在');
-            return;
-        }
-
-        console.log('音声認識を停止します');
-        setIsListening(false);
-
-        // 最後の文章を送信（停止前に）
-        if (currentTranscript.trim() && !isProcessing) {
-            handleSendMessage(currentTranscript);
-            return; // handleSendMessageの中で停止するので、ここでは早期リターン
-        }
-
-        try {
-            if (recognitionRef.current.running) {
-                recognitionRef.current.running = false;
-                recognitionRef.current.stop();
-            }
-        } catch (error) {
-            console.error('音声認識停止エラー:', error);
-        }
-
-        // エコーキャンセリングを停止
-        if (echoCancellationRef.current) {
-            echoCancellationRef.current.stop();
         }
     };
 
@@ -671,19 +515,6 @@ export default function RealtimeConversation() {
 
         // 処理中フラグを設定
         setIsProcessing(true);
-
-        // 音声認識を一時停止
-        if (recognitionRef.current && (isListening || recognitionRef.current.running)) {
-            console.log('メッセージ送信中は音声認識を停止します');
-            setIsListening(false);
-            try {
-                recognitionRef.current.running = false;
-                recognitionRef.current.startPending = false;
-                recognitionRef.current.stop();
-            } catch (error) {
-                console.error('音声認識停止エラー:', error);
-            }
-        }
 
         // リセット
         setCurrentTranscript('');

@@ -187,14 +187,23 @@ export function createSystemPrompt(elapsedSeconds: number, currentTime: string):
  * 初期会話履歴を生成する関数
  * システムプロンプトと初期メッセージを含む会話の初期状態を作成します
  * 
- * @param sessionTime - セッション開始時間の情報
+ * @param sessionTime - セッション開始時間の情報（省略可能）
  * @returns 初期会話履歴の配列（システムプロンプト＋初期AIメッセージ）
  */
-export function createInitialConversationHistory(sessionTime: SessionTime): PromptTemplate[] {
-    const elapsedSeconds = calculateElapsedSeconds(sessionTime.startTimestamp);
+export function createInitialConversationHistory(sessionTime?: SessionTime): PromptTemplate[] {
+    // 引数が省略された場合や不正な値の場合にデフォルト値を使用
+    // シンプルなデフォルト値を用意して、エラーを回避
+    const defaultSessionTime = setSessionStartTime();
+    const currentTime = defaultSessionTime.startTime;
     
     const baseHistory = [
-        createSystemPrompt(elapsedSeconds, sessionTime.startTime),
+        {
+            role: 'system' as const,
+            content: SYSTEM_PROMPT.content
+                .replace('{currentTime}', currentTime)
+                .replace('{currentPhase}', TIME_BASED_PROMPTS.EARLY_STAGE.prompt)
+                .replace('{remainingTime}', formatElapsedTime(TIME_BASED_PROMPTS.EARLY_STAGE.duration.end))
+        },
         {
             role: 'assistant' as const,
             content: DEFAULT_WELCOME_MESSAGE
