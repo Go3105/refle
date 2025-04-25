@@ -40,6 +40,15 @@ export async function POST() {
                             }
                         }
                     ]
+                },
+                今日の振り返り: {
+                    rich_text: [
+                        {
+                            text: {
+                                content: '今日の振り返り結果を載せる'
+                            }
+                        }
+                    ]
                 }
             }
         });
