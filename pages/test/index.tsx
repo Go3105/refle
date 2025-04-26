@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { createInitialConversationHistory, getCurrentPhase, formatElapsedTime } from '@/app/lib/prompts';
+import { createInitialConversationHistory, getCurrentPhase, formatElapsedTime, TIME_BASED_PROMPTS } from '@/app/lib/prompts';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -19,6 +19,11 @@ export default function TestPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
   const [currentPhase, setCurrentPhase] = useState<string>('');
+  const [summary, setSummary] = useState<string>('');
+  const [editableSummary, setEditableSummary] = useState<string>('');
+  const [lastMessageTime, setLastMessageTime] = useState<Date | null>(null);
+  const [shouldCreateSummary, setShouldCreateSummary] = useState(false);
+
   useEffect(() => {
     const resetConversation = async () => {
       try {
@@ -53,11 +58,33 @@ export default function TestPage() {
       const elapsedSeconds = Math.floor((currentTime.getTime() - conversationStartTime.getTime()) / 1000);
       const phase = getCurrentPhase(elapsedSeconds);
       setCurrentPhase(phase);
+
+      // CLOSING_STAGEの開始時間に達したらサマリ作成フラグを立てる
+      if (elapsedSeconds >= TIME_BASED_PROMPTS.CLOSING_STAGE.duration.start && !shouldCreateSummary) {
+        setShouldCreateSummary(true);
+      }
     };
 
     const interval = setInterval(updatePhase, 1000);
     return () => clearInterval(interval);
-  }, [conversationStartTime]);
+  }, [conversationStartTime, shouldCreateSummary]);
+
+  const createSummary = async () => {
+    try {
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ createSummary: true }),
+      });
+      const data = await res.json();
+      setSummary(data.summary);
+      setEditableSummary(data.summary);
+    } catch (error) {
+      console.error('サマリ作成エラー:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +105,7 @@ export default function TestPage() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setLastMessageTime(currentTime);
 
     try {
       const elapsedSeconds = isFirstMessage ? 0 : 
@@ -101,6 +129,11 @@ export default function TestPage() {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, assistantMessage]);
+
+      // 送信後にサマリ作成フラグが立っているかチェック
+      if (shouldCreateSummary && !summary) {
+        createSummary();
+      }
     } catch (error) {
       console.error('Error:', error);
       const errorMessage: Message = { 
@@ -128,6 +161,14 @@ export default function TestPage() {
     } catch (error) {
       console.error('Error resetting conversation:', error);
     }
+  };
+
+  const handleSummaryChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditableSummary(e.target.value);
+  };
+
+  const handleSummarySave = () => {
+    setSummary(editableSummary);
   };
 
   return (
@@ -189,6 +230,27 @@ export default function TestPage() {
                 </div>
               </div>
             ))}
+            {summary && (
+              <div className="mt-8 p-4 bg-white rounded-lg shadow">
+                <h2 className="text-lg font-bold mb-2">会話のサマリ</h2>
+                <form className="space-y-3">
+                  <textarea 
+                    className="w-full p-2 border rounded-md min-h-[150px]"
+                    value={editableSummary}
+                    onChange={handleSummaryChange}
+                  ></textarea>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSummarySave}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      保存
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex items-start max-w-3xl gap-3">

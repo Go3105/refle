@@ -7,7 +7,7 @@
  * 1. クライアント（ブラウザ）との双方向リアルタイム通信
  * 2. ユーザーの音声入力テキストの受信と処理
  * 3. Gemini APIを使用したAI応答の生成
- * 4. クライアントへの応答と音声合成リクエストの送信
+ * 4. ElevenLabs APIを使用した音声合成
  * 5. 会話履歴の管理
  */
 
@@ -15,7 +15,9 @@ import { Server } from 'socket.io';
 import {
     createInitialConversationHistory
 } from '../../app/lib/prompts';
-export const runtime = 'edge';
+
+// Edge ランタイムは Socket.IO と互換性がないため削除
+// export const runtime = 'edge';
 
 /**
  * Socket.IO APIハンドラー
@@ -30,27 +32,29 @@ export default function handler(req, res) {
         url: req.url
     });
 
-    // サーバーインスタンスが既に存在する場合は再利用
-    if (res.socket.server.io) {
-        console.log('Socket.IOサーバーは既に実行中です');
-        res.end();
-        return;
-    }
-
-    // Socket.IOサーバーを作成
     try {
+        // res.socketからHTTPサーバーにアクセスする方法を確認
+        const httpServer = res.socket.server;
+
+        // サーバーインスタンスが既に存在する場合は再利用
+        if (httpServer.io) {
+            console.log('Socket.IOサーバーは既に実行中です');
+            res.end();
+            return;
+        }
+
         console.log('Socket.IOサーバーをセットアップしています...');
 
         // Socket.IOサーバーインスタンスの作成
-        const io = new Server(res.socket.server, {
+        const io = new Server(httpServer, {
             path: '/api/socketio', // APIパス
             addTrailingSlash: false, // パスの末尾にスラッシュを追加しない
             pingTimeout: 6000,  // 接続タイムアウト（6秒）
             pingInterval: 2500, // ping間隔（2.5秒）
         });
 
-        // サーバーインスタンスをレスポンスオブジェクトに保存して再利用できるようにする
-        res.socket.server.io = io;
+        // サーバーインスタンスをHTTPサーバーオブジェクトに保存して再利用できるようにする
+        httpServer.io = io;
         console.log('Socket.IOサーバーが正常に初期化されました');
 
         // クライアント接続時のイベントハンドラー
@@ -65,6 +69,7 @@ export default function handler(req, res) {
                 isProcessing: false,        // 処理中フラグ
                 lastResponseTime: Date.now(), // 最後の応答時間
                 // プロンプトライブラリから初期会話履歴を作成
+                // 引数なしで呼び出し - 関数内部でデフォルト値が使用される
                 conversationHistory: createInitialConversationHistory()
             };
 
@@ -81,7 +86,8 @@ export default function handler(req, res) {
 
                 // 少し遅延させてから音声合成リクエストを送信（UIが先に更新されるように）
                 setTimeout(() => {
-                    socket.emit('speech-request', { text: welcomeMessage });
+                    // ElevenLabs APIを使用して音声合成
+                    generateSpeech(welcomeMessage, socket);
 
                     // 音声合成の開始後、さらに遅延させてから音声認識開始の準備完了通知を送信
                     setTimeout(() => {
@@ -227,9 +233,10 @@ export default function handler(req, res) {
                             console.log('AIレスポンス送信:', aiResponse.substring(0, 50) + '...');
                             socket.emit('ai-response', { text: aiResponse });
 
-                            // 少し遅延してから音声合成リクエストを送信（UIが先に更新されるように）
+                            // 少し遅延してから音声合成を実行
                             setTimeout(() => {
-                                socket.emit('speech-request', { text: aiResponse });
+                                // ElevenLabs APIを使用して音声合成
+                                generateSpeech(aiResponse, socket);
 
                                 // 最後の応答時間を記録
                                 clientState.lastResponseTime = Date.now();
@@ -264,6 +271,71 @@ export default function handler(req, res) {
                     }
                 }
             });
+
+            /**
+             * ElevenLabs APIを使用して音声合成を行う関数
+             * 
+             * @param {string} text - 音声合成するテキスト
+             * @param {Object} socket - Socket.IOソケットオブジェクト
+             */
+            async function generateSpeech(text, socket) {
+                try {
+                    const apiKey = process.env.ELEVENLABS_API_KEY;
+                    if (!apiKey) {
+                        throw new Error('ELEVENLABS_API_KEYが設定されていません。.env.localファイルで設定してください。');
+                    }
+
+                    // 音声合成リクエストを送信中であることをクライアントに通知
+                    socket.emit('tts-status', { status: 'generating' });
+
+                    // ElevenLabs APIを呼び出して音声合成
+                    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB'; // デフォルトのボイスID
+                    const response = await fetch(
+                        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'audio/mpeg',
+                                'Content-Type': 'application/json',
+                                'xi-api-key': apiKey
+                            },
+                            body: JSON.stringify({
+                                text: text,
+                                model_id: 'eleven_monolingual_v2',
+                                voice_settings: {
+                                    stability: 0.5,
+                                    similarity_boost: 0.75,
+                                    style: 0.0,
+                                    use_speaker_boost: true
+                                }
+                            })
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`ElevenLabs APIエラー: ${response.status}`, errorText);
+                        throw new Error(`音声合成に失敗しました: ${response.status} ${response.statusText}`);
+                    }
+
+                    // オーディオデータをArrayBufferとして取得
+                    const audioBuffer = await response.arrayBuffer();
+                    // Base64エンコード
+                    const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+                    // 音声データをクライアントに送信
+                    socket.emit('audio-stream', { 
+                        audio: base64Audio, 
+                        contentType: 'audio/mpeg', 
+                        text: text 
+                    });
+
+                    console.log('音声合成完了、音声データを送信しました');
+                } catch (error) {
+                    console.error('音声合成エラー:', error);
+                    socket.emit('tts-error', { message: error.message });
+                }
+            }
 
             /**
              * 音声合成エラーの通知受信イベントハンドラー
