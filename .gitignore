@@ -42,4 +42,5 @@ next-env.d.ts
 .cursor/.*
 
 # userdata
+lib/userdata.ts
 userdata.ts
