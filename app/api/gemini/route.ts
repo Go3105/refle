@@ -2,7 +2,13 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { createInitialConversationHistory, createSystemPrompt, setSessionStartTime, SessionTime } from '@/app/lib/prompts';
+import { 
+    createInitialConversationHistory, 
+    createSystemPrompt, 
+    setSessionStartTime, 
+    SessionTime,
+    SUMMARY_PROMPT 
+} from '@/app/lib/prompts';
 
 // APIキーのチェック
 if (!process.env.GEMINI_API_KEY) {
@@ -75,7 +81,27 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { message, reset, elapsedSeconds } = body;
+        const { message, reset, elapsedSeconds, createSummary } = body;
+
+        // サマリ作成リクエストの場合
+        if (createSummary) {
+            const conversationHistory = sessionManager.getConversationHistory();
+            const summaryPrompt = SUMMARY_PROMPT.content.replace('{conversationHistory}', 
+                JSON.stringify(conversationHistory, null, 2));
+
+            const model = 'gemini-2.0-flash-lite';
+            const response = await ai.models.generateContentStream({
+                model,
+                contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }]
+            });
+
+            let fullResponse = '';
+            for await (const chunk of response) {
+                fullResponse += chunk.text;
+            }
+
+            return NextResponse.json({ summary: fullResponse });
+        }
 
         if (reset) {
             sessionManager.resetSession();

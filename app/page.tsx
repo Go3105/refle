@@ -4,10 +4,10 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AccountMenu from './components/AccountMenu';
-import RealtimeConversation from './components/RealtimeConversation';
 import { SignOutButton } from './components/SignOutButton';
 // import { Player } from "@lottiefiles/react-lottie-player";
 import Microphoneicon from './components/ui/Microphoneicon';
+import UnifiedChatInterface from './components/UnifiedChatInterface';
 
 export default function Page() {
     const [showConversation, setShowConversation] = useState(false);
@@ -37,16 +37,10 @@ export default function Page() {
                     >
                         <Microphoneicon />
                     </button>
-                    <Link
-                        href="/test"
-                        className="mt-4 px-8 py-4 rounded-lg bg-gray-100 font-serif hover:bg-gray-200 text-lg"
-                    >
-                        検証
-                    </Link>
                 </div>
             ) : (
-                // リアルタイム会話画面
-                <RealtimeConversation />
+                // 統合されたチャットインターフェース
+                <UnifiedChatInterface />
             )}
         </main>
     );
