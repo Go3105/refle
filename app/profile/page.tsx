@@ -8,13 +8,6 @@ export default function ProfilePage() {
 
                 <div className="bg-white p-6 rounded-lg shadow-md">
                     <div className="mb-6">
-                        <h2 className="text-lg font-semibold mb-2">ユーザー情報</h2>
-                        <p className="mb-1">名前: ユーザー</p>
-                        <p className="mb-1">メール: user@example.com</p>
-                        <p>登録日: 2023年4月1日</p>
-                    </div>
-
-                    <div className="mb-6">
                         <h2 className="text-lg font-semibold mb-2">活動統計</h2>
                         <p className="mb-1">振り返り回数: 42回</p>
                         <p>最近の振り返り: 2023年10月15日</p>
