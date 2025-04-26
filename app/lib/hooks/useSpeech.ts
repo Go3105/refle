@@ -344,11 +344,11 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       return;
     }
     
-    // 処理中は開始しない
-    if (isProcessing) {
-      console.log('音声認識を開始できません: 処理中です');
-      return;
-    }
+    // 処理中でも開始できるようにする（コメントアウト）
+    // if (isProcessing) {
+    //   console.log('音声認識を開始できません: 処理中です');
+    //   return;
+    // }
     
     // 既に実行中なら何もしない
     if (isListening || (recognitionRef.current && recognitionRef.current.running)) {
@@ -397,7 +397,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         
         // 再試行
         setTimeout(() => {
-          if (!isListening && !isProcessing) {
+          if (!isProcessing) {  // isListeningチェックを削除
             console.log('音声認識再試行...');
             startListening();
           }
@@ -457,13 +457,32 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
     // 音声認識を一時停止
     if (recognitionRef.current && (isListening || recognitionRef.current.running)) {
       console.log('メッセージ送信中は音声認識を停止します');
+      // 状態は変更するが、停止はしない
       setIsListening(false);
+      
       try {
+        // 内部フラグのみ変更し、実際には停止しない
         recognitionRef.current.running = false;
-        recognitionRef.current.stop();
+        // recognitionRef.current.stop(); - 音声認識を停止しない
       } catch (error) {
         console.error('音声認識停止エラー:', error);
       }
+      
+      // 少し遅延させてから音声認識を再開する準備をする
+      setTimeout(() => {
+        if (recognitionRef.current && !isProcessing) {
+          console.log('音声認識を自動的に再開します');
+          recognitionRef.current.running = true;
+          // 再開のためのタイマーをセット
+          setTimeout(() => {
+            try {
+              startListening();
+            } catch (e) {
+              console.error('自動再開エラー:', e);
+            }
+          }, 1000);
+        }
+      }, 500);
     }
     
     // リセット
