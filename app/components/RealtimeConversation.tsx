@@ -5,838 +5,674 @@
  * 
  * このコンポーネントは以下の機能を提供します：
  * 1. Socket.IOを使用したリアルタイム通信
- * 2. Web Speech APIによる音声認識（SpeechRecognition）
+ * 2. Web Speech APIによる音声認識
  * 3. AIからの応答の表示と音声合成によるフィードバック
- * 4. 会話UIと音声制御ボタン
+ * 4. 自然な会話ターン制御
  */
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
-import { EchoCancellation } from '@/lib/echoCancellation';
+import React, { useEffect, useRef, useState } from 'react';
+import { Socket } from 'socket.io-client';
+import styles from './RealtimeConversation.module.css';
 
-// Socket.IOの型定義のみをインポート
-import type { Socket } from 'socket.io-client';
+// 会話関連コンポーネントのインポート
+import { ConversationHeader, MessageList, InputArea, SummaryDisplay } from '../components/conversation';
+import useSpeech from '../lib/hooks/useSpeech';
+import { useSocketConnection } from '../hooks/useSocketConnection';
 
 /**
  * メッセージデータの型定義
  * 会話の各メッセージを表現する型
  */
-interface Message {
+export interface Message {
     role: 'user' | 'assistant';  // メッセージの送信者
     content: string;             // メッセージの内容
+    timestamp?: number;          // 送信タイムスタンプ
 }
 
-// 型定義がなければグローバル宣言
-// Web Speech API 型定義（最低限）
-interface MySpeechRecognition extends EventTarget {
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    running: boolean;
-    startPending: boolean;
-    start(): void;
-    stop(): void;
-    onresult: ((event: MySpeechRecognitionEvent) => void) | null;
-    onend: (() => void) | null;
-    onaudioend: (() => void) | null;
-    onspeechstart: (() => void) | null;
-    onspeechend: (() => void) | null;
-}
-interface MySpeechRecognitionEvent extends Event {
-    results: MySpeechRecognitionResultList;
-}
-interface MySpeechRecognitionResultList {
-    length: number;
-    [index: number]: MySpeechRecognitionResult;
-}
-interface MySpeechRecognitionResult {
-    0: MySpeechRecognitionAlternative;
-    isFinal: boolean;
-    length: number;
-}
-interface MySpeechRecognitionAlternative {
-    transcript: string;
-    confidence: number;
-}
-declare global {
-    interface Window {
-        SpeechRecognition: { new(): MySpeechRecognition };
-        webkitSpeechRecognition: { new(): MySpeechRecognition };
-    }
-}
+// Socket.IOサーバーのURL
+const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:3001';
 
 export default function RealtimeConversation() {
     // ステート変数
-    const [isConnected, setIsConnected] = useState(false);       // Socket.IO接続状態
-    const [isListening, setIsListening] = useState(false);       // 音声認識状態
     const [messages, setMessages] = useState<Message[]>([]);     // 会話メッセージ履歴
-    const [currentTranscript, setCurrentTranscript] = useState(''); // 現在の音声認識テキスト
     const [isProcessing, setIsProcessing] = useState(false);     // AI処理中フラグ
-    const [isInitialized, setIsInitialized] = useState(false);   // 初期化状態フラグ
+    const [summary, setSummary] = useState<string>('');          // 会話サマリ
+    const [editableSummary, setEditableSummary] = useState<string>(''); // 編集可能なサマリ
+    const [showingSummary, setShowingSummary] = useState(false); // サマリ表示状態
+    const [conversationEnded, setConversationEnded] = useState(false); // 会話終了フラグ
+    const [micPermission, setMicPermission] = useState<boolean | null>(null); // マイク許可状態
+    const [recognitionRestart, setRecognitionRestart] = useState(false); // 音声認識再開フラグ
+    const [isMediaStreamSupported, setIsMediaStreamSupported] = useState<boolean>(true);
+    const [showSidePanel, setShowSidePanel] = useState<boolean>(false);
+    const [isEditing, setIsEditing] = useState<boolean>(false);
 
     // Refオブジェクト
-    const socketRef = useRef<Socket | null>(null);              // Socket.IOインスタンス
-    const recognitionRef = useRef<MySpeechRecognition | null>(null);                   // SpeechRecognitionインスタンス
     const messagesEndRef = useRef<HTMLDivElement>(null);        // メッセージ末尾への参照（自動スクロール用）
-    const audioRef = useRef<HTMLAudioElement | null>(null);     // 音声再生用Audio要素
-    const echoCancellationRef = useRef<EchoCancellation | null>(null);
+    const isMountedRef = useRef(true);
+    const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 処理タイムアウト用
+    const audioElementRef = useRef<HTMLAudioElement>(null);     // 音声再生用Audio要素
+    const socketRefInternal = useRef<any>(null);                // Socket.IO参照用の内部Ref
+    const recognitionTimerRef = useRef<NodeJS.Timeout | null>(null); // 音声認識再開タイマー
+
+    // イベント結果を追跡（二重処理防止）
+    const lastEventTimeRef = useRef<{[key: string]: number}>({
+        readyForNextInput: 0,
+        audioEnded: 0
+    });
+
+    // Socket.IOフックの使用
+    const { 
+        isConnected, 
+        socketRef,
+        disconnect
+    } = useSocketConnection({
+        onConnect: () => {
+            // 接続成功時に音声認識を開始
+            console.log('接続成功: 初回音声認識を開始します');
+            
+            // 前のセッションが残っていることを防ぐために少し遅延
+            setTimeout(() => {
+                if (!conversationEnded) {
+                    startListening(); 
+                }
+            }, 500);
+        },
+        onAiResponse: (data) => {
+            // AIのレスポンスをメッセージ一覧に追加
+            console.log('AI応答受信イベント発生:', data.text.substring(0, 30) + '...');
+            
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: data.text,
+                timestamp: Date.now()
+            }]);
+            
+            // 処理フラグをリセット
+            setIsProcessing(false);
+            
+            console.log('AI応答を受信しました。次の入力待機中...');
+            
+            // 処理タイムアウトがあれば解除
+            if (processingTimeoutRef.current) {
+                clearTimeout(processingTimeoutRef.current);
+                processingTimeoutRef.current = null;
+            }
+            
+            // AIの応答が完了したら次のターンの準備
+            // 音声合成→音声再生が終わった後に音声認識が自動的に開始されるため、
+            // ここでは特に何もしない
+        },
+        onReadyForNextInput: (data: { keep_listening?: boolean; reset_state?: boolean }) => {
+            console.log('次の入力準備完了:', data);
+            
+            // イベント受信時に強制的に処理中フラグをリセット
+            setIsProcessing(false);
+            
+            // 処理タイムアウトがあれば解除
+            if (processingTimeoutRef.current) {
+                clearTimeout(processingTimeoutRef.current);
+                processingTimeoutRef.current = null;
+            }
+            
+            // 会話が終了していれば何もしない
+            if (conversationEnded) return;
+            
+            // デバウンス処理：短時間に複数呼ばれるのを防止
+            const now = Date.now();
+            if (now - lastEventTimeRef.current.readyForNextInput < 1000) {
+                console.log('前回のready-for-next-inputから1秒以内のため、処理をスキップします');
+                return;
+            }
+            lastEventTimeRef.current.readyForNextInput = now;
+            
+            // サーバーからの状態リセット指示がある場合
+            if (data.reset_state) {
+                console.log('サーバーからの指示により状態を完全リセットします');
+                
+                // 音声認識を一度完全に停止
+                stopListening();
+                
+                // 少し待機してから再開
+                const resetTimeout = setTimeout(() => {
+                    if (isMountedRef.current) {
+                        console.log('完全リセット後に音声認識を再開します');
+                        setRecognitionRestart(true); // 再開フラグを使用
+                    }
+                }, 800);
+                
+                // コンポーネントがアンマウントされた場合のクリーンアップ
+                return () => clearTimeout(resetTimeout);
+            }
+            
+            // リスニング継続フラグがある場合
+            if (data.keep_listening === true) {
+                // 音声認識の再開を確実にするため、少し遅延を入れる
+                console.log('次の入力準備完了: 音声認識を1000ms後に再開します');
+                
+                // 現在のリスニング状態をログ出力
+                console.log('現在の音声認識状態:', { isListening, isProcessing, timestamp: Date.now() });
+                
+                // いったん音声認識を停止してから再開する（より確実に）
+                stopListening();
+                
+                // 十分な遅延を入れて再開（再開フラグを使用）
+                const restartTimeout = setTimeout(() => {
+                    if (isMountedRef.current) {
+                        console.log('音声認識を再開します (強制再開)');
+                        // 再開フラグを設定して、専用のエフェクトで処理
+                        setRecognitionRestart(true);
+                    }
+                }, 1000);
+                
+                // クリーンアップ関数を返す
+                return () => clearTimeout(restartTimeout);
+            }
+        },
+        onAudioStream: (data) => {
+            playAudioFromBase64(data.audio, data.contentType);
+        }
+    });
+
+    // socketRefを内部Refに同期
+    useEffect(() => {
+        if (socketRef.current) {
+            console.log('socketRef.currentが変更されました');
+            socketRefInternal.current = socketRef.current;
+            
+            // 接続状態を確認
+            socketRef.current.emit('ping');
+        }
+    }, [socketRef.current]);
+
+    // 1分ごとにping送信（接続維持）
+    useEffect(() => {
+        const pingInterval = setInterval(() => {
+            if (socketRef.current && isConnected && !conversationEnded) {
+                socketRef.current.emit('ping');
+            }
+        }, 60000);
+        
+        return () => clearInterval(pingInterval);
+    }, [socketRef.current, isConnected, conversationEnded]);
+
+    // 音声認識フックの使用
+    const {
+        isListening,
+        currentTranscript,
+        toggleListening,
+        startListening,
+        stopListening,
+        isProcessing: speechIsProcessing,
+        audioRef
+    } = useSpeech({
+        onMessageReady: handleSendMessage,
+        socketRef: socketRefInternal
+    });
+
+    // audioRef設定
+    useEffect(() => {
+        if (audioElementRef.current) {
+            audioRef.current = audioElementRef.current;
+        }
+    }, [audioRef]);
 
     /**
      * マウント状態の追跡
-     * コンポーネントがマウントされているかを追跡し、アンマウント後の処理を防止
      */
-    const isMountedRef = useRef(true);
     useEffect(() => {
         isMountedRef.current = true;
+        
         return () => {
             isMountedRef.current = false;
-        };
-    }, []);
-
-    /**
-     * 初期化状態の追跡
-     * 各機能の初期化状態を追跡するためのオブジェクト
-     */
-    const initRef = useRef({
-        speechInitialized: false,    // 音声認識の初期化状態
-        socketInitialized: false,    // Socket.IOの初期化状態
-        retryAttempt: 0              // 再試行回数
-    });
-
-    /**
-     * Socket.IOの接続設定
-     * サーバーとのリアルタイム接続を確立し、各種イベントハンドラーを設定
-     */
-    useEffect(() => {
-        let isMounted = true;
-        let speechInitialized = false;
-
-        /**
-         * Socket.IO初期化関数
-         * Socket.IOクライアントを初期化し、サーバーとの接続を確立
-         */
-        const initSocket = async () => {
-            try {
-                // サーバーサイドのSocket.IOを初期化
-                console.log('Socket.IO初期化APIを呼び出しています...');
-                const response = await fetch('/api/socketio');
-                console.log('Socket.IO初期化API応答:', response.status);
-
-                if (!isMounted) return;
-
-                // Socket.IOクライアントをダイナミックインポート
-                console.log('Socket.IOクライアントを初期化しています...');
-                const { io } = await import('socket.io-client');
-
-                // Socket.IOクライアントを作成
-                const socket = io('', {
-                    path: '/api/socketio',          // Socket.IOサーバーのパス
-                    reconnectionAttempts: 10,       // 再接続試行回数
-                    reconnectionDelay: 1000,        // 再接続間隔（ミリ秒）
-                    timeout: 60000,                 // 接続タイムアウト（60秒）
-                    transports: ['websocket', 'polling'], // 通信方式
-                    autoConnect: true               // 自動接続を有効化
-                });
-
-                // 接続エラーイベントの処理を追加
-                socket.on('connect_error', (err) => {
-                    console.error('Socket.IO接続エラー:', err);
-                    if (isMounted) setIsConnected(false);
-                });
-
-                socketRef.current = socket;
-
-                /**
-                 * 接続イベントハンドラー
-                 * Socket.IO接続成功時の処理
-                 */
-                socket.on('connect', () => {
-                    console.log('Socket.IO接続成功:', socket.id);
-                    setIsConnected(true);
-
-                    // 接続成功時に音声認識の初期化と開始（一度だけ）
-                    if (!speechInitialized && isMounted) {
-                        speechInitialized = true;
-                        // 少し遅延させて音声認識を開始（ready-for-next-inputイベントからの開始に任せる）
-                        console.log('音声認識の初期化を待機します...');
-                    }
-                });
-
-                /**
-                 * AIの応答受信イベントハンドラー
-                 * サーバーからAI応答テキストを受信したときの処理
-                 */
-                socket.on('ai-response', (data) => {
-                    console.log('AI応答受信:', data);
-                    setMessages(prev => [...prev, {
-                        role: 'assistant',
-                        content: data.text
-                    }]);
-                    setIsProcessing(false);
-                });
-
-                /**
-                 * 次の入力準備完了イベントハンドラー
-                 * サーバーから次の入力準備が完了したという通知を受け取ったときの処理
-                 */
-                socket.on('ready-for-next-input', (data) => {
-                    console.log('次の入力準備完了:', data);
-
-                    // keep_listeningフラグが設定されている場合は、既に実行中でなければ開始
-                    const shouldKeepListening = data.keep_listening === true;
-
-                    if (shouldKeepListening) {
-                        if (!isListening && !isProcessing) {
-                            console.log('音声認識を開始します（継続リスニングモード）');
-                            // すぐに開始試行
-                            startListening();
-                        } else {
-                            console.log('音声認識は既に実行中なので継続します');
-                        }
-                    } else {
-                        // 従来のロジック（互換性のため）
-                        setTimeout(() => {
-                            // 音声認識が既に動作していなければ開始を試みる
-                            if (!isListening && !isProcessing) {
-                                console.log('音声認識を開始します（従来のモード）');
-
-                                // すぐに一回目の試行
-                                startListening();
-
-                                // 失敗した場合のバックアップとして複数回試行
-                                setTimeout(() => {
-                                    if (!isListening && !isProcessing) {
-                                        console.log('音声認識開始バックアップ試行 (1/2)');
-                                        startListening();
-
-                                        // 最後の試行
-                                        setTimeout(() => {
-                                            if (!isListening && !isProcessing) {
-                                                console.log('音声認識開始バックアップ試行 (2/2)');
-                                                startListening();
-                                            }
-                                        }, 2000);
-                                    }
-                                }, 1000);
-                            } else {
-                                console.log('音声認識は既に実行中または処理中のため開始しません');
-                            }
-                        }, 500);
-                    }
-                });
-
-                // 音声合成リクエスト
-                socket.on('speech-request', async (data) => {
-                    console.log('音声合成リクエスト:', data);
-                    try {
-                        // 音声認識は停止せず、継続させる（エコーは気にしない）
-                        // 代わりに、音声の音量を制御する
-
-                        console.log('ElevenLabs APIリクエスト送信中...');
-                        const response = await fetch('/api/text-to-speech', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                text: data.text,
-                                voiceId: 'JBFqnCBsd6RMkjVDRZzb'
-                            })
-                        });
-
-                        if (!isMounted) return;
-
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            console.error('音声合成APIエラー:', errorData);
-                            throw new Error(`音声合成APIエラー: ${errorData.error || response.statusText}`);
-                        }
-
-                        console.log('音声合成API呼び出し成功、音声データを処理中...');
-                        const audioBlob = await response.blob();
-                        const audioUrl = URL.createObjectURL(audioBlob);
-
-                        // 既存の音声を停止
-                        if (audioRef.current) {
-                            try {
-                                audioRef.current.pause();
-                                audioRef.current.currentTime = 0;
-                            } catch (error) {
-                                console.error('既存の音声停止エラー:', error);
-                            }
-                        }
-
-                        // 新しい音声オブジェクトを作成
-                        const audio = new Audio();
-
-                        // イベントハンドラを先に設定
-                        audio.oncanplaythrough = () => {
-                            console.log('音声再生準備完了');
-                        };
-
-                        audio.onended = () => {
-                            console.log('音声再生が終了しました');
-                            URL.revokeObjectURL(audioUrl);
-
-                            // 音声再生終了後も音声認識は継続中なので特に何もしない
-                        };
-
-                        audio.onerror = (error) => {
-                            console.error('音声再生エラー:', error);
-                            URL.revokeObjectURL(audioUrl);
-                        };
-
-                        // ソースを設定してから
-                        audio.src = audioUrl;
-                        audioRef.current = audio;
-
-                        // 自動再生の問題に対処
-                        try {
-                            // ミュートして再生を試みる
-                            audio.volume = 0;
-                            await audio.play();
-
-                            // 再生が始まったらボリュームを上げる
-                            setTimeout(() => {
-                                if (audio) {
-                                    // 徐々にボリュームを上げる
-                                    audio.volume = 0.2;
-                                    setTimeout(() => { audio.volume = 0.5; }, 50);
-                                    setTimeout(() => { audio.volume = 0.8; }, 100);
-                                    setTimeout(() => { audio.volume = 1.0; }, 150);
-                                }
-                            }, 50);
-                        } catch (playError) {
-                            console.error('音声自動再生エラー:', playError);
-                        }
-                    } catch (error) {
-                        console.error('音声合成エラー:', error);
-                        // エラーメッセージをユーザーに表示
-                        setMessages(prev => [...prev, {
-                            role: 'assistant',
-                            content: '※音声合成エラーが発生しました。テキストのみで会話を続けます。'
-                        }]);
-
-                        // Socket.IOサーバーにエラーを通知
-                        if (socketRef.current) {
-                            socketRef.current.emit('tts-error', { error: error.message });
-                        }
-                    }
-                });
-
-                // エラーイベント
-                socket.on('error', (error) => {
-                    console.error('Socket.IOエラー:', error);
-                    setIsProcessing(false);
-                });
-
-                // 切断イベント
-                socket.on('disconnect', () => {
-                    console.log('Socket.IO切断');
-                    if (isMounted) setIsConnected(false);
-                });
-            } catch (error) {
-                console.error('Socket.IO初期化エラー:', error);
-                if (isMounted) setIsConnected(false);
+            
+            // タイムアウトをクリア
+            if (processingTimeoutRef.current) {
+                clearTimeout(processingTimeoutRef.current);
+                processingTimeoutRef.current = null;
             }
         };
-
-        initSocket();
-
-        // クリーンアップ関数
-        return () => {
-            isMounted = false;
-            if (socketRef.current) {
-                console.log('Socket.IO切断（クリーンアップ）');
-                socketRef.current.disconnect();
-            }
-        };
-    }, []);
-
-    /**
-     * 音声認識の初期化
-     * Web Speech APIを使用して音声認識機能を初期化し、各種イベントハンドラーを設定する
-     */
-    useEffect(() => {
-        // 初期化されていない場合は何もしない
-        if (!isInitialized) return;
-
-        console.log('音声認識の初期化を開始します...');
-
-        // ブラウザがWeb Speech APIをサポートしているか確認
-        if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-            // ブラウザ固有の実装を取得
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-            // 既存のインスタンスがあれば一旦クリーンアップ
-            if (recognitionRef.current) {
-                try {
-                    console.log('既存の音声認識インスタンスをクリーンアップします');
-                    // イベントハンドラーの解除
-                    recognitionRef.current.onend = null;
-                    recognitionRef.current.onresult = null;
-                    recognitionRef.current.onaudioend = null;
-                    recognitionRef.current.onspeechstart = null;
-                    recognitionRef.current.onspeechend = null;
-
-                    // 実行中なら停止
-                    if (recognitionRef.current.running) {
-                        recognitionRef.current.stop();
-                    }
-                } catch (error) {
-                    console.error('以前の音声認識インスタンスの停止エラー:', error);
-                }
-            }
-
-            // 新しいインスタンスを作成
-            console.log('新しい音声認識インスタンスを作成します');
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;    // 継続的な認識を有効化（認識終了後も自動的に再開）
-            recognition.interimResults = true; // 中間結果も取得（認識中のテキストをリアルタイム表示）
-            recognition.lang = 'ja-JP';        // 日本語で認識
-
-            // 状態追跡フラグを初期化
-            recognition.running = false;       // 実行中フラグ
-            recognition.startPending = false;  // 開始保留フラグ
-
-            /**
-             * 音声認識結果イベントハンドラー
-             * 音声認識結果を取得し、確定結果の場合はメッセージとして送信
-             */
-            recognition.onresult = (event: MySpeechRecognitionEvent) => {
-                const results = Array.from(event.results);
-                const transcript = results
-                    .map((result: MySpeechRecognitionResult) => result[0])
-                    .map((result: MySpeechRecognitionAlternative) => result.transcript)
-                    .join('');
-                const isFinal = results.some((result: MySpeechRecognitionResult) => result.isFinal);
-
-                console.log('音声認識結果:', transcript, isFinal ? '(確定)' : '(中間)');
-                setCurrentTranscript(transcript);
-
-                // 確定結果がある場合はメッセージを送信
-                if (isFinal && transcript.trim() && !isProcessing) {
-                    handleSendMessage(transcript);
-                }
-            };
-
-            /**
-             * 音声認識終了イベントハンドラー
-             * 音声認識が終了したときに自動的に再開する処理
-             */
-            recognition.onend = () => {
-                console.log('音声認識が終了しました');
-
-                // フラグを更新
-                if (recognition) {
-                    recognition.running = false;
-                }
-
-                // 手動で停止された場合は再開しない
-                if (isListening && !isProcessing) {
-                    console.log('音声認識を自動的に再開します');
-
-                    // 少し遅延させてから再開（連続再開防止）
-                    setTimeout(() => {
-                        if (isListening && !isProcessing) {
-                            try {
-                                recognition.running = true;
-                                recognition.start();
-                                console.log('音声認識が再開されました');
-                            } catch (error) {
-                                console.error('音声認識の自動再開に失敗:', error);
-                                if (error.message && error.message.includes('already started')) {
-                                    recognition.running = true;
-                                } else {
-                                    // 最後のリカバリー試行
-                                    setTimeout(() => {
-                                        if (isListening && !isProcessing) {
-                                            try {
-                                                recognition.running = true;
-                                                recognition.start();
-                                            } catch (lastError) {
-                                                console.error('音声認識の最終再開試行に失敗:', lastError);
-                                                recognition.running = false;
-                                                // UIを更新してユーザーに通知
-                                                setIsListening(false);
-                                            }
-                                        }
-                                    }, 500);
-                                }
-                            }
-                        }
-                    }, 300);
-                } else {
-                    console.log('音声認識は停止されました（自動再開なし）');
-                }
-            };
-
-            /**
-             * 音声検出開始イベントハンドラー
-             * ユーザーの発話開始を検出
-             */
-            recognition.onspeechstart = () => {
-                console.log('音声入力開始を検出しました');
-            };
-
-            /**
-             * 音声検出終了イベントハンドラー
-             * ユーザーの発話区切りを検出
-             */
-            recognition.onspeechend = () => {
-                console.log('音声入力の区切りを検出しました');
-                // ここでは何もしない - 自動送信はonresultのisFinalで処理
-            };
-
-            // 音声認識オブジェクトを保存
-            recognitionRef.current = recognition;
-
-            // エコーキャンセリングの初期化
-            echoCancellationRef.current = new EchoCancellation();
-
-            // イベントハンドラーの設定後、少し遅延させてから開始を試みる
-            setTimeout(() => {
-                console.log('初期化後、音声認識の開始を試みます');
-                if (!isListening && !isProcessing) {
-                    startListening();
-                }
-            }, 1000);
-        } else {
-            // ブラウザが音声認識をサポートしていない場合
-            console.error('このブラウザはWeb Speech APIをサポートしていません');
-            alert('お使いのブラウザは音声認識をサポートしていません。Chrome、Edge、Safariなどの最新ブラウザをお試しください。');
-        }
-    }, [isInitialized, isListening, isProcessing]);
-
-    /**
-     * コンポーネント初期化処理
-     * コンポーネントのマウント時に一度だけ初期化フラグを設定
-     */
-    useEffect(() => {
-        // 一度だけ初期化フラグを設定
-        if (!isInitialized) {
-            console.log('コンポーネントの初期化を開始します...');
-            setIsInitialized(true);
-        }
     }, []);
 
     /**
      * メッセージスクロール処理
-     * 新しいメッセージが追加されたときに自動的に最下部にスクロール
      */
     useEffect(() => {
-        // 新しいメッセージが追加されたらスクロールを一番下に移動
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     /**
-     * 音声認識の開始/停止を切り替える関数
-     * ボタンクリック時に呼び出され、現在の状態に応じて音声認識を開始または停止する
+     * 処理状態の変更を追跡
      */
-    const toggleListening = () => {
-        if (isListening) {
-            stopListening();
-        } else {
-            startListening();
+    useEffect(() => {
+        if (speechIsProcessing !== isProcessing) {
+            setIsProcessing(speechIsProcessing);
         }
-    };
+    }, [speechIsProcessing]);
 
     /**
-     * 音声認識を開始する関数
-     * Web Speech APIを使用して音声認識を開始し、状態を更新する
-     * 失敗した場合は自動的に再試行する
+     * マイク許可状態の確認
      */
-    const startListening = async () => {
-        // 音声認識が利用可能かチェック
-        if (!recognitionRef.current) {
-            console.log('音声認識を開始できません: SpeechRecognitionが初期化されていません');
-            // 音声認識が初期化されていない場合は、初期化を試みる
-            if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-                console.log('音声認識の初期化を再試行します...');
-                setIsInitialized(false);
-                setTimeout(() => setIsInitialized(true), 500);
-            }
-            return;
-        }
-
-        // 処理中は開始しない
-        if (isProcessing) {
-            console.log('音声認識を開始できません: 処理中です');
-            return;
-        }
-
-        // 既に実行中なら何もしない
-        if (isListening || (recognitionRef.current && recognitionRef.current.running)) {
-            console.log('音声認識は既に実行中です。状態を更新するだけにします。');
-            setIsListening(true);
-            return;
-        }
-
-        console.log('音声認識を開始します...');
-        setCurrentTranscript('');
-        setIsListening(true);
-
-        try {
-            // マイクへのアクセスを取得
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-            // エコーキャンセリングを開始
-            if (echoCancellationRef.current && audioRef.current) {
-                const audioStream = (audioRef.current as HTMLAudioElement & { captureStream: () => MediaStream }).captureStream();
-                await echoCancellationRef.current.start(stream, audioStream);
-            }
-
-            // まずフラグを設定
-            recognitionRef.current.running = true;
-
-            // 直接開始を試みる
-            recognitionRef.current.start();
-            console.log('音声認識が開始されました');
-
-            // マイクへのアクセス許可を促すメッセージ（初回のみ）
-            if (!initRef.current.speechInitialized) {
-                console.log('音声認識の初回開始: マイクの許可が必要かもしれません');
-                initRef.current.speechInitialized = true;
-            }
-        } catch (error) {
-            console.error('音声認識開始エラー:', error);
-
-            // 既に開始されている場合は無視
-            if (error.message && error.message.includes('already started')) {
-                console.log('音声認識は既に開始されています');
-                recognitionRef.current.running = true;
-            } else {
-                // その他のエラーは状態をリセット
-                recognitionRef.current.running = false;
-                setIsListening(false);
-
-                // 再試行
-                setTimeout(() => {
-                    if (!isListening && !isProcessing) {
-                        console.log('音声認識再試行...');
-                        startListening();
+    useEffect(() => {
+        async function checkMicrophonePermission() {
+            try {
+                // ブラウザがPermissions APIをサポートしているか確認
+                if (navigator.permissions && navigator.permissions.query) {
+                    const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+                    console.log('マイクの許可状態:', permissionStatus.state);
+                    setMicPermission(permissionStatus.state === 'granted');
+                    
+                    // 許可状態が変更された時のイベントリスナー
+                    permissionStatus.onchange = () => {
+                        console.log('マイクの許可状態が変更されました:', permissionStatus.state);
+                        setMicPermission(permissionStatus.state === 'granted');
+                        
+                        // 許可された場合は音声認識を開始
+                        if (permissionStatus.state === 'granted') {
+                            startListening();
+                        }
+                    };
+                } else {
+                    console.log('Permissions APIがサポートされていません。マイク許可状態を確認できません。');
+                    
+                    // 代替：実際にマイクアクセスを試みる
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        stream.getTracks().forEach(track => track.stop());
+                        setMicPermission(true);
+                    } catch (error) {
+                        console.error('マイクアクセスエラー:', error);
+                        setMicPermission(false);
                     }
-                }, 1000);
+                }
+            } catch (error) {
+                console.error('マイク許可状態チェックエラー:', error);
             }
         }
-    };
+        
+        checkMicrophonePermission();
+    }, [startListening]);
 
     /**
-     * 音声認識を停止する関数
-     * 実行中の音声認識を停止し、必要に応じて最後の認識テキストを送信する
+     * 音声認識の再開を確実に行うエフェクト
      */
-    const stopListening = () => {
-        if (!recognitionRef.current) {
-            console.log('音声認識を停止できません: recognitionRef不在');
-            return;
+    useEffect(() => {
+        if (recognitionRestart && !isProcessing && !conversationEnded && isMountedRef.current) {
+            console.log('★★★ 音声認識再開フラグに基づいて再開します');
+            
+            // フラグをリセット
+            setRecognitionRestart(false);
+            
+            // 安全に少し待ってから再開
+            const restartTimer = setTimeout(() => {
+                if (isMountedRef.current) {
+                    startListening();
+                }
+            }, 500);
+            
+            return () => clearTimeout(restartTimer);
         }
+    }, [recognitionRestart, isProcessing, conversationEnded, startListening]);
 
-        console.log('音声認識を停止します');
-        setIsListening(false);
-
-        // 最後の文章を送信（停止前に）
-        if (currentTranscript.trim() && !isProcessing) {
-            handleSendMessage(currentTranscript);
-            return; // handleSendMessageの中で停止するので、ここでは早期リターン
-        }
-
+    /**
+     * Base64エンコードされた音声データを再生する
+     */
+    const playAudioFromBase64 = (base64Data: string, contentType: string) => {
         try {
-            if (recognitionRef.current.running) {
-                recognitionRef.current.running = false;
-                recognitionRef.current.stop();
+            // Base64エンコードされた音声データをデコード
+            const audioData = atob(base64Data);
+            
+            // バイナリデータに変換
+            const byteNumbers = new Array(audioData.length);
+            for (let i = 0; i < audioData.length; i++) {
+                byteNumbers[i] = audioData.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            
+            // Blobを作成
+            const audioBlob = new Blob([byteArray], { type: contentType });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            // 既存の音声を停止
+            if (audioElementRef.current) {
+                try {
+                    audioElementRef.current.pause();
+                    audioElementRef.current.currentTime = 0;
+                } catch (error) {
+                    console.error('既存の音声停止エラー:', error);
+                }
+            }
+            
+            // 音声再生の準備
+            if (audioElementRef.current) {
+                audioElementRef.current.src = audioUrl;
+                
+                // 音声の再生完了イベント
+                audioElementRef.current.onended = () => {
+                    console.log('音声再生が終了しました');
+                    URL.revokeObjectURL(audioUrl);
+                    
+                    // 会話が終了していなければ、音声認識を自動的に開始
+                    if (!conversationEnded) {
+                        console.log('音声再生完了後に音声認識を再開します');
+                        // 処理中フラグをリセット
+                        setIsProcessing(false);
+                        
+                        // ブラウザの状態同期のために少し待機
+                        setTimeout(() => {
+                            // 短い間隔で連続して呼ばれるのを防止
+                            const now = Date.now();
+                            if (now - lastEventTimeRef.current.audioEnded > 1000) {
+                                lastEventTimeRef.current.audioEnded = now;
+                                
+                                // 既存のタイマーをクリアして新しいタイマーを設定
+                                if (recognitionTimerRef.current) {
+                                    clearTimeout(recognitionTimerRef.current);
+                                }
+                                
+                                // 音声認識を再開する（専用フラグで確実に）
+                                recognitionTimerRef.current = setTimeout(() => {
+                                    if (isMountedRef.current) {
+                                        console.log('★★★ 音声再生完了から1000ms後に音声認識を再開します ★★★');
+                                        setRecognitionRestart(true);
+                                    }
+                                }, 1000);
+                            }
+                        }, 100);
+                    }
+                };
+                
+                // 音声再生エラー時の対応を追加
+                audioElementRef.current.onerror = (e) => {
+                    console.error('音声再生エラー:', e);
+                    // エラー時も音声認識を再開
+                    if (!conversationEnded && !isProcessing && !isListening) {
+                        setRecognitionRestart(true);
+                    }
+                };
+                
+                // 音声再生
+                audioElementRef.current.play().catch(error => {
+                    console.error('音声再生エラー:', error);
+                    // エラー時も音声認識を再開
+                    if (!conversationEnded && !isProcessing && !isListening) {
+                        setRecognitionRestart(true);
+                    }
+                });
             }
         } catch (error) {
-            console.error('音声認識停止エラー:', error);
-        }
-
-        // エコーキャンセリングを停止
-        if (echoCancellationRef.current) {
-            echoCancellationRef.current.stop();
+            console.error('音声データ処理エラー:', error);
+            // エラー時も音声認識を再開
+            if (!conversationEnded && !isProcessing && !isListening) {
+                setRecognitionRestart(true);
+            }
         }
     };
 
     /**
      * メッセージを送信する関数
-     * ユーザーの音声認識テキストをサーバーに送信し、会話履歴に追加する
-     * 
-     * @param {string} text - 送信するテキストメッセージ
      */
-    const handleSendMessage = (text: string) => {
-        // ユーザーメッセージを表示
-        setMessages(prev => [...prev, { role: 'user', content: text }]);
-
+    function handleSendMessage(text: string) {
+        // 空のメッセージは送信しない
+        if (!text.trim() || isProcessing || conversationEnded) return;
+        
+        // 新しいメッセージを追加
+        const newMessage: Message = {
+            role: 'user',
+            content: text,
+            timestamp: Date.now()
+        };
+        
+        // メッセージリストを更新
+        setMessages(prev => [...prev, newMessage]);
+        
         // 処理中フラグを設定
         setIsProcessing(true);
-
-        // 音声認識を一時停止
-        if (recognitionRef.current && (isListening || recognitionRef.current.running)) {
-            console.log('メッセージ送信中は音声認識を停止します');
-            setIsListening(false);
-            try {
-                recognitionRef.current.running = false;
-                recognitionRef.current.startPending = false;
-                recognitionRef.current.stop();
-            } catch (error) {
-                console.error('音声認識停止エラー:', error);
-            }
-        }
-
-        // リセット
-        setCurrentTranscript('');
-
-        // Socket.IOを通じてサーバーに送信
-        if (socketRef.current) {
-            console.log('ユーザーメッセージ送信:', text);
+        
+        console.log('メッセージを送信:', text);
+        
+        // Socket.IOで送信 - 'chat-message'ではなく'user-speech'イベントを使用
+        if (socketRef?.current) {
             socketRef.current.emit('user-speech', text);
+            console.log('user-speechイベントを送信しました:', text);
+            
+            // 処理タイムアウトを設定（30秒後にタイムアウト）
+            processingTimeoutRef.current = setTimeout(() => {
+                if (isProcessing) {
+                    console.log('AIレスポンスのタイムアウト: 処理をリセットします');
+                    setIsProcessing(false);
+                    
+                    // タイムアウトメッセージを表示
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: 'レスポンスの取得に時間がかかりすぎています。もう一度お試しください。',
+                        timestamp: Date.now()
+                    }]);
+                    
+                    // 音声認識を再開
+                    setTimeout(() => {
+                        if (isMountedRef.current && !conversationEnded) {
+                            startListening();
+                        }
+                    }, 500);
+                }
+            }, 30000);
+        } else {
+            console.error('Socket接続がありません');
+            setIsProcessing(false);
         }
+    }
+
+    /**
+     * マイクボタンの切り替え処理
+     */
+    const handleToggleMic = () => {
+        if (conversationEnded) return;
+        
+        if (isProcessing) {
+            // 処理中は何もしない
+            return;
+        }
+        
+        toggleListening();
     };
 
     /**
-     * セッションを終了する関数
-     * 音声認識と音声再生を停止し、Socket.IO接続を切断して状態をリセットする
+     * 会話を終了する
      */
     const handleEndSession = () => {
         // 音声認識を停止
-        if (recognitionRef.current) {
-            recognitionRef.current.stop();
+        stopListening();
+        
+        // 会話終了フラグを立てる
+        setConversationEnded(true);
+        
+        // Socket接続を切断
+        if (socketRef?.current) {
+            socketRef.current.emit('end-session');
+            disconnect();
         }
+        
+        // 会話サマリを作成
+        createSummary();
+    };
 
-        // 音声再生を停止
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
-
-        // Socket.IO接続を切断
-        if (socketRef.current) {
-            socketRef.current.disconnect();
-        }
-
-        // リセット
-        setIsListening(false);
-        setMessages([]);
-        setCurrentTranscript('');
-        setIsProcessing(false);
-        setIsConnected(false);
-
-        // エコーキャンセリングを停止
-        if (echoCancellationRef.current) {
-            echoCancellationRef.current.stop();
+    /**
+     * 会話サマリを作成する
+     */
+    const createSummary = async () => {
+        if (messages.length === 0) return;
+        
+        try {
+            setIsProcessing(true);
+            
+            // サマリ生成APIを呼び出す
+            const response = await fetch('/api/summarize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ messages })
+            });
+            
+            if (!response.ok) {
+                throw new Error('サマリの生成に失敗しました');
+            }
+            
+            const data = await response.json();
+            setSummary(data.summary);
+            setEditableSummary(data.summary);
+            setShowingSummary(true);
+        } catch (error) {
+            console.error('サマリ生成エラー:', error);
+            alert('会話のサマリ生成に失敗しました。');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
     /**
-     * コンポーネントのレンダリング
-     * 会話インターフェースのUI要素を構築して返す
+     * サマリの編集処理
      */
-    return (
-        <div className="flex flex-col h-full">
-            {/* ヘッダー部分 - タイトルと接続状態、終了ボタンを表示 */}
-            <header className="flex justify-between items-center p-4 bg-pink-50 shadow-sm">
-                <h1 className="text-xl font-bold">リアルタイム音声会話</h1>
-                <div className="flex items-center gap-3">
-                    {/* 接続状態インジケーター */}
-                    <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span>{isConnected ? 'オンライン' : '接続中...'}</span>
-                    {/* 終了ボタン */}
+    const handleSummaryChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setEditableSummary(e.target.value);
+    };
+
+    /**
+     * サマリの保存処理
+     */
+    const handleSaveSummary = () => {
+        setSummary(editableSummary);
+        setShowingSummary(false);
+        setIsEditing(false);
+        
+        // サーバーにサマリを保存する処理をここに追加可能
+    };
+
+    // マイク許可を要求する関数
+    const requestMicrophonePermission = async () => {
+        try {
+            console.log('マイクの許可を要求しています...');
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('マイク許可が付与されました');
+            
+            // 一度許可を得たらストリームを停止し、音声認識を開始
+            stream.getTracks().forEach(track => track.stop());
+            setMicPermission(true);
+            
+            // 少し遅延して音声認識を開始
+            setTimeout(() => {
+                startListening();
+            }, 500);
+        } catch (error) {
+            console.error('マイク許可要求エラー:', error);
+            setMicPermission(false);
+            alert('音声対話を利用するには、マイクへのアクセスを許可してください。');
+        }
+    };
+
+    // マイク権限が付与されていない場合の表示
+    if (micPermission === false && !showingSummary) {
+        return (
+            <div className="flex flex-col h-screen bg-gray-50 items-center justify-center p-4">
+                <div className="bg-white rounded-lg shadow-lg p-6 max-w-md text-center">
+                    <div className="text-6xl mb-4">🎤</div>
+                    <h2 className="text-2xl font-bold mb-4">マイクへのアクセスが必要です</h2>
+                    <p className="mb-6 text-gray-600">
+                        この音声対話アプリケーションを使用するには、マイクへのアクセス許可が必要です。
+                        「許可する」ボタンをクリックして、ブラウザのマイク許可リクエストを承認してください。
+                    </p>
                     <button
-                        onClick={handleEndSession}
-                        className="px-4 py-2 bg-pink-100 rounded-lg hover:bg-pink-200"
+                        onClick={requestMicrophonePermission}
+                        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                     >
-                        終了
+                        マイクの使用を許可する
                     </button>
                 </div>
-            </header>
+            </div>
+        );
+    }
 
-            {/* メッセージ表示エリア - 会話履歴を表示するスクロール可能な領域 */}
-            <div className="flex-1 overflow-auto p-4 bg-gray-50">
-                <div className="max-w-3xl mx-auto">
-                    {/* メッセージの配列をマッピングして表示 */}
-                    {messages.map((message, index) => (
-                        <div
-                            key={index}
-                            className={`mb-4 ${message.role === 'user'
-                                ? 'ml-auto bg-pink-100'
-                                : 'mr-auto bg-white flex items-start'
-                                } p-3 rounded-lg max-w-[80%]`}
-                        >
-                            {/* AIメッセージにはアイコンを表示 */}
-                            {message.role === 'assistant' && (
-                                <div className="mr-2 flex-shrink-0">
-                                    <Image
-                                        src="/ai_character.png"
-                                        width={40}
-                                        height={40}
-                                        alt="AI character"
-                                        className="rounded-full"
-                                    />
-                                </div>
-                            )}
-                            <div>
-                                <p>{message.content}</p>
-                            </div>
+    // 会話終了時とサマリ表示時のUI
+    if (showingSummary) {
+        return (
+            <div className="flex flex-col h-screen bg-gray-50">
+                {/* 会話ヘッダー */}
+                <ConversationHeader 
+                    onEndSession={handleEndSession}
+                    isProcessing={isProcessing}
+                    isDisabled={conversationEnded}
+                />
+                
+                {/* メッセージ一覧 */}
+                <MessageList 
+                    messages={messages}
+                    messagesEndRef={messagesEndRef}
+                />
+                
+                {/* 音声再生用の非表示オーディオ要素 */}
+                <audio ref={audioElementRef} className="hidden" />
+                
+                {/* 入力エリア */}
+                <InputArea
+                    isListening={isListening}
+                    isProcessing={isProcessing}
+                    currentTranscript={currentTranscript}
+                    toggleListening={handleToggleMic}
+                    onSendMessage={handleSendMessage}
+                    isDisabled={conversationEnded}
+                />
+
+                {showSidePanel && summary && (
+                    <div className="w-full lg:w-1/3 p-4">
+                        <SummaryDisplay 
+                            summary={summary} 
+                            onChange={handleSummaryChange} 
+                            onSave={handleSaveSummary} 
+                            isEditing={isEditing}
+                        />
+
+                        <div className="mt-4 flex justify-center">
+                            <button
+                                onClick={() => setIsEditing(!isEditing)}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                            >
+                                {isEditing ? '編集をキャンセル' : '編集する'}
+                            </button>
                         </div>
-                    ))}
-                    {/* 自動スクロール用の参照ポイント */}
-                    <div ref={messagesEndRef} />
-                </div>
-            </div>
-
-            {/* 入力エリア - 現在の認識テキスト表示と音声認識制御ボタン */}
-            <div className="p-4 bg-white border-t">
-                <div className="max-w-3xl mx-auto flex items-center gap-2">
-                    {/* 現在の状態に応じて表示を変更する入力テキストエリア */}
-                    <div className={`flex-1 p-3 min-h-16 border rounded-lg ${isProcessing ? 'bg-pink-50' :
-                        isListening ? 'bg-green-50 animate-pulse' : 'bg-gray-50'
-                        }`}>
-                        {isProcessing ?
-                            <div className="flex items-center">
-                                <span className="mr-2">AIが考え中...</span>
-                                <div className="w-4 h-4 rounded-full bg-pink-300 animate-ping"></div>
-                            </div> :
-                            (currentTranscript ?
-                                <div className="break-words">{currentTranscript}</div> :
-                                (isListening ?
-                                    <div className="flex items-center">
-                                        <span className="mr-2">聞いています...</span>
-                                        <div className="w-4 h-4 rounded-full bg-green-300 animate-bounce"></div>
-                                    </div> :
-                                    '話しかけてください'
-                                )
-                            )
-                        }
                     </div>
-                    {/* 音声認識の開始/停止ボタン */}
-                    <button
-                        onClick={toggleListening}
-                        disabled={isProcessing}
-                        className={`p-3 rounded-full ${isProcessing ? 'bg-gray-400 text-white cursor-not-allowed' :
-                            isListening ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
-                            } transition-all duration-300 hover:scale-110`}
-                        title={isListening ? "音声認識を停止" : "音声認識を開始"}
-                    >
-                        {/* 状態に応じてアイコンを切り替え */}
-                        {isListening ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="6" y="6" width="12" height="12" />
-                            </svg>
-                        ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                                <line x1="12" y1="19" x2="12" y2="22" />
-                            </svg>
-                        )}
-                    </button>
-                </div>
-                {/* 操作ガイドメッセージ */}
-                <div className="max-w-3xl mx-auto mt-2 text-center text-sm text-gray-500">
-                    {isListening ?
-                        "自動で音声を認識しています。止めたい場合はボタンを押してください" :
-                        (isProcessing ? "AIが応答を考えています..." : "マイクボタンは手動での会話制御に使えます")}
-                </div>
+                )}
             </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-screen bg-gray-50">
+            {/* 会話ヘッダー */}
+            <ConversationHeader 
+                onEndSession={handleEndSession}
+                isProcessing={isProcessing}
+                isDisabled={conversationEnded}
+            />
+            
+            {/* メッセージ一覧 */}
+            <MessageList 
+                messages={messages}
+                messagesEndRef={messagesEndRef}
+            />
+            
+            {/* 音声再生用の非表示オーディオ要素 */}
+            <audio ref={audioElementRef} className="hidden" />
+            
+            {/* 入力エリア */}
+            <InputArea
+                isListening={isListening}
+                isProcessing={isProcessing}
+                currentTranscript={currentTranscript}
+                toggleListening={handleToggleMic}
+                onSendMessage={handleSendMessage}
+                isDisabled={conversationEnded}
+            />
         </div>
     );
 } 

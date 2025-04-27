@@ -1,5 +1,7 @@
 # Refle
 
+
+
 ### 各作業開始時の手順書 
 ```bash
 1. mainブランチに移動 (git checkout main)
@@ -141,3 +143,47 @@ npm run dev
 ```
 
 ブラウザで `http://localhost:3000` にアクセスすると、アプリケーションが表示されます。
+
+## プロジェクトのフォルダ構成
+
+```
+プロジェクトルート/
+├── app/                  # メインアプリケーションコード (Next.js App Router)
+│   ├── components/       # UIコンポーネント
+│   │   ├── ui/           # 基本的なUIコンポーネント
+│   │   │   ├── Microphoneicon.tsx
+│   │   │   └── button.tsx
+│   │   ├── conversation/ # 会話関連コンポーネント
+│   │   ├── UnifiedChatInterface.tsx
+│   │   ├── RealtimeConversation.tsx
+│   │   ├── Summary.tsx
+│   │   ├── ChatControls.tsx
+│   │   ├── MessageList.tsx
+│   │   ├── AudioPlayer.tsx
+│   │   ├── SignOutButton.tsx
+│   │   └── AccountMenu.tsx
+│   ├── hooks/            # カスタムフック
+│   │   ├── useBetterSpeechRecognition.ts
+│   │   └── useSocketConnection.ts
+│   ├── api/              # APIルート
+│   │   ├── notion/
+│   │   ├── gemini/
+│   │   ├── text-to-speech/
+│   │   ├── env-check/
+│   │   ├── auth/
+│   │   └── conversation/
+│   ├── profile/          # プロフィールページ
+│   ├── settings/         # 設定ページ
+│   ├── lib/              # アプリケーション固有のライブラリ
+│   ├── styles/           # スタイル関連ファイル
+│   ├── login/            # ログインページ
+│   ├── add/              # 追加機能ページ
+│   ├── page.tsx          # メインページコンポーネント
+│   └── layout.tsx        # レイアウトコンポーネント
+├── lib/                  # 共通ライブラリ
+├── public/               # 静的ファイル
+├── pages/                # ページコンポーネント (Pages Router)
+└── [設定ファイル類]        # 各種設定ファイル
+```
+
+このプロジェクトは Next.js の App Router を主に使用した構造になっています。ユーザーインターフェースのコンポーネントは `app/components` ディレクトリに格納され、APIエンドポイントは `app/api` ディレクトリに配置されています。

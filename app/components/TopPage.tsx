@@ -8,6 +8,7 @@ import { SignOutButton } from './SignOutButton';
 // import { Player } from "@lottiefiles/react-lottie-player";
 import Microphoneicon from './Microphoneicon';
 import { DynaPuff } from 'next/font/google';
+import UnifiedChatInterface from './UnifiedChatInterface';
 
 const dynaPuff = DynaPuff({
     subsets: ['latin'],
@@ -107,7 +108,7 @@ export default function TopPage({ username }: { username: string }) {
                     )}
                 </div>
             ) : (
-                <RealtimeConversation />
+                <UnifiedChatInterface />
             )}
         </main>
     );
