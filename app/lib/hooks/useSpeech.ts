@@ -87,7 +87,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // 無音検出の閾値（ミリ秒）
-  const SILENCE_THRESHOLD = 1500;
+  const SILENCE_THRESHOLD = 2500;
 
   // Socket.IOイベントの設定
   useEffect(() => {
@@ -271,13 +271,14 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       
       // エラーイベント
       recognition.onerror = (event) => {
-        console.error('音声認識エラー:', event.error);
-        
         // 無視可能なエラー
         if (event.error === 'no-speech') {
           console.log('無音検出、処理を継続します');
           return;
         }
+        
+        // それ以外のエラーはコンソールに出力
+        console.error('音声認識エラー:', event.error);
         
         // 中止エラーの処理（別のプロセスが音声認識を中止した場合）
         if (event.error === 'aborted') {
@@ -650,13 +651,14 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
     
     // エラーイベント
     recognition.onerror = (event) => {
-      console.error('音声認識エラー:', event.error);
-      
       // 無視可能なエラー
       if (event.error === 'no-speech') {
         console.log('無音検出、処理を継続します');
         return;
       }
+      
+      // それ以外のエラーはコンソールに出力
+      console.error('音声認識エラー:', event.error);
       
       // 中止エラーの処理（別のプロセスが音声認識を中止した場合）
       if (event.error === 'aborted') {

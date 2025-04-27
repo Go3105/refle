@@ -9,6 +9,7 @@ import { SignOutButton } from './SignOutButton';
 import Microphoneicon from './Microphoneicon';
 import { DynaPuff } from 'next/font/google';
 import UnifiedChatInterface from './UnifiedChatInterface';
+import { useConversation } from '../context/ConversationContext';
 
 const dynaPuff = DynaPuff({
     subsets: ['latin'],
@@ -20,10 +21,15 @@ export default function TopPage({ username }: { username: string }) {
     const [showConversation, setShowConversation] = useState(false);
     const [micHover, setMicHover] = useState(false);
     const [showGreeting, setShowGreeting] = useState(false);
+    const { startConversation, resetConversation } = useConversation();
 
     const greeting = `${userName}さん今日もお疲れ様でした。簡単に1日の出来事を振り返ってみましょう`;
 
     const handleStartReflection = () => {
+        // 会話開始時間を設定
+        startConversation();
+        console.log('会話を開始します - handleStartReflection');
+        
         setShowGreeting(true);
         setTimeout(() => {
             setShowGreeting(false);

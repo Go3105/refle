@@ -2,7 +2,7 @@
  * app/components/conversation/MessageList.tsx
  * 会話メッセージの一覧表示コンポーネント
  */
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, RefObject } from 'react';
 import Image from 'next/image';
 import { Message } from './index';
 
@@ -10,7 +10,7 @@ interface MessageListProps {
     messages: Message[];
     currentTranscript?: string;
     isProcessing?: boolean;
-    messagesEndRef?: React.RefObject<HTMLDivElement>;
+    messagesEndRef?: React.RefObject<HTMLDivElement> | null;
 }
 
 export default function MessageList({ 
@@ -115,7 +115,7 @@ export default function MessageList({
             )}
             
             {/* スクロール用の参照ポイント */}
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef || null} />
         </div>
     );
 } 

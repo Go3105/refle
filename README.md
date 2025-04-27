@@ -1,7 +1,6 @@
 # Refle
 
 
-
 ### 各作業開始時の手順書 
 ```bash
 1. mainブランチに移動 (git checkout main)
@@ -95,6 +94,10 @@ GitHub上でプルリクエストを作成してください。
 ```bash
 git checkout main
 git pull origin main
+
+# ブランチを更新
+git checkout [ブランチ名]
+git merge main
 ```
 
 ### 10. 不要なブランチの削除
@@ -185,5 +188,3 @@ npm run dev
 ├── pages/                # ページコンポーネント (Pages Router)
 └── [設定ファイル類]        # 各種設定ファイル
 ```
-
-このプロジェクトは Next.js の App Router を主に使用した構造になっています。ユーザーインターフェースのコンポーネントは `app/components` ディレクトリに格納され、APIエンドポイントは `app/api` ディレクトリに配置されています。

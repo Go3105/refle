@@ -9,8 +9,20 @@ type Message = {
 };
 
 const formatMessageElapsedTime = (startTime: Date, currentTime: Date): string => {
+  // 会話開始時間からメッセージ時間までの経過秒数を計算
   const elapsedSeconds = Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
-  return formatElapsedTime(elapsedSeconds);
+  
+  // 分と秒を計算（絶対値を使用して常に正の値にする）
+  const absSeconds = Math.abs(elapsedSeconds);
+  const minutes = Math.floor(absSeconds / 60);
+  const seconds = absSeconds % 60;
+  
+  // 分がある場合は「分秒」、ない場合は「秒」だけ表示
+  if (minutes > 0) {
+    return `${minutes}分${seconds}秒`;
+  } else {
+    return `${seconds}秒`;
+  }
 };
 
 export default function TestPage() {
@@ -53,6 +65,7 @@ export default function TestPage() {
   useEffect(() => {
     if (!conversationStartTime) return;
 
+    // 会話開始時間からの経過時間を監視し、フェーズの更新とUI表示の更新を行う
     const updatePhase = () => {
       const currentTime = new Date();
       const elapsedSeconds = Math.floor((currentTime.getTime() - conversationStartTime.getTime()) / 1000);
@@ -65,8 +78,14 @@ export default function TestPage() {
       }
     };
 
+    // 1秒ごとにフェーズを更新
     const interval = setInterval(updatePhase, 1000);
-    return () => clearInterval(interval);
+    console.log('会話セッション開始時間:', conversationStartTime);
+    
+    return () => {
+      clearInterval(interval);
+      console.log('会話セッション監視を終了');
+    };
   }, [conversationStartTime, shouldCreateSummary]);
 
   const createSummary = async () => {
@@ -90,17 +109,21 @@ export default function TestPage() {
     e.preventDefault();
     if (!input.trim()) return;
 
+    // 現在時刻を取得
     const currentTime = new Date();
     const isFirstMessage = !conversationStartTime;
     
+    // 初回メッセージの場合のみ開始時間を設定（1回だけ設定される）
     if (isFirstMessage) {
+      console.log('会話セッション開始時間を設定:', currentTime);
       setConversationStartTime(currentTime);
     }
 
+    // ユーザーメッセージを追加
     const userMessage: Message = { 
       role: 'user', 
       content: input,
-      timestamp: currentTime
+      timestamp: currentTime // 現在時刻
     };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -108,9 +131,11 @@ export default function TestPage() {
     setLastMessageTime(currentTime);
 
     try {
+      // 経過時間の計算（初回メッセージの場合は0秒）
       const elapsedSeconds = isFirstMessage ? 0 : 
         Math.floor((currentTime.getTime() - conversationStartTime!.getTime()) / 1000);
 
+      // APIリクエスト
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: {
@@ -123,14 +148,19 @@ export default function TestPage() {
       });
       const data = await res.json();
       
+      // AI応答用の新しいタイムスタンプを作成
+      const responseTime = new Date();
+      console.log(`AI応答: 経過時間=${elapsedSeconds}秒, 応答時間=${responseTime}`);
+      
+      // AIメッセージを追加
       const assistantMessage: Message = { 
         role: 'assistant', 
         content: data.response,
-        timestamp: new Date()
+        timestamp: responseTime // 応答時の時刻
       };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // 送信後にサマリ作成フラグが立っているかチェック
+      // サマリ作成
       if (shouldCreateSummary && !summary) {
         createSummary();
       }
@@ -139,10 +169,11 @@ export default function TestPage() {
       const errorMessage: Message = { 
         role: 'assistant', 
         content: 'エラーが発生しました。もう一度お試しください。',
-        timestamp: new Date()
+        timestamp: new Date() // エラー応答時の時刻
       };
       setMessages(prev => [...prev, errorMessage]);
     }
+    
     setIsLoading(false);
   };
 

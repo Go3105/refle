@@ -139,8 +139,9 @@ export default function useChat() {
     
     const currentTime = new Date();
     
-    // 初回メッセージなら開始時間を設定
+    // 初回メッセージなら開始時間を設定（一度だけ設定され、リセットされるまで変更されない）
     if (!startTime) {
+      console.log('会話開始時間を設定:', currentTime);
       setStartTime(currentTime);
     }
     
