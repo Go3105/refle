@@ -7,6 +7,7 @@ import RealtimeConversation from './RealtimeConversation';
 import { SignOutButton } from './SignOutButton';
 // import { Player } from "@lottiefiles/react-lottie-player";
 import Microphoneicon from './Microphoneicon';
+import BackgroundAnimation from './BackgroundAnimation';
 import { DynaPuff } from 'next/font/google';
 import UnifiedChatInterface from './UnifiedChatInterface';
 import { useConversation } from '../context/ConversationContext';
@@ -29,66 +30,56 @@ export default function TopPage({ username }: { username: string }) {
         // 会話開始時間を設定
         startConversation();
         console.log('会話を開始します - handleStartReflection');
-        
+
         setShowGreeting(true);
         setTimeout(() => {
             setShowGreeting(false);
             setShowConversation(true);
-        }, 500 + greeting.length * 50); // 全文字表示後に遷移
+        }, 1000 + greeting.length * 70); // 全文字表示後に遷移
     };
 
     return (
         <main className="flex flex-col h-screen">
             {(!showGreeting && !showConversation) && (
-                <div className="w-full h-20 bg-orange-300 absolute top-0 left-0 z-0" />
+                <div className="w-full h-20 bg-green-400 absolute top-0 left-0 z-0" />
             )}
-            {showGreeting && (
-                <div className="fixed inset-0 z-0 pointer-events-none">
-                    <div className="w-full h-full animate-wave-bg" style={{
-                        background: `repeating-linear-gradient(-45deg, #fff7cc 0px, #fff7cc 10px, #fffde4 10px, #fffde4 20px)`,
-                        opacity: 0.7,
-                        backgroundSize: '40px 40px',
-                    }} />
-                    <style jsx global>{`
-                        @keyframes wave-bg {
-                            0% { background-position-x: 0; }
-                            100% { background-position-x: 40px; }
-                        }
-                        .animate-wave-bg {
-                            animation: wave-bg 2s linear infinite;
-                        }
-                    `}</style>
-                </div>
-            )}
-            <div className="absolute top-4 right-4 flex items-center z-10">
-                <AccountMenu />
-            </div>
             {!showConversation ? (
                 <div className="flex flex-col justify-center items-center h-full">
                     {showGreeting ? (
-                        <div className="text-4xl font-bold mb-8 whitespace-pre-line" style={{ display: 'flex', flexWrap: 'wrap' }}>
-                            {greeting.split('').map((char, i) => (
-                                <span
-                                    key={i}
+                        <div className="absolute w-full h-full z-0 flex items-center justify-center">
+                            <BackgroundAnimation />
+                            <div className="flex flex-col items-center justify-center w-full h-full absolute top-0 left-0 z-10">
+                                <div
+                                    className="text-4xl mb-8 whitespace-pre-line zen-maru-gothic-black"
                                     style={{
-                                        opacity: 0,
-                                        animation: `fadein-char 0.5s forwards`,
-                                        animationDelay: `${i * 0.04}s`,
-                                        display: 'inline-block',
-                                        color: '#ff8c42',
-                                        whiteSpace: 'pre',
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
                                     }}
                                 >
-                                    {char}
-                                </span>
-                            ))}
-                            <style jsx>{`
-                                @keyframes fadein-char {
-                                    to {
-                                        opacity: 1;
+                                    {greeting.split('').map((char, i) => (
+                                        <span
+                                            key={i}
+                                            style={{
+                                                opacity: 0,
+                                                animation: `fadein-char 0.5s forwards`,
+                                                animationDelay: `${i * 0.07}s`,
+                                                display: 'inline-block',
+                                                color: '#ffffff',
+                                                whiteSpace: 'pre',
+                                            }}
+                                        >
+                                            {char}
+                                        </span>
+                                    ))}
+                                </div>
+                                <style jsx>{`
+                                    @keyframes fadein-char {
+                                        to {
+                                            opacity: 1;
+                                        }
                                     }
-                                }
-                            `}</style>
+                                `}</style>
+                            </div>
                         </div>
                     ) : (
                         <>
@@ -96,7 +87,10 @@ export default function TopPage({ username }: { username: string }) {
                                 Refle
                             </div>
                             <div className="absolute top-4 right-20 flex items-center z-20">
-                                <SignOutButton className="mr-0" />
+                                <SignOutButton />
+                            </div>
+                            <div className="absolute top-4 right-6 flex items-center z-20">
+                                <AccountMenu />
                             </div>
                             <button
                                 onClick={handleStartReflection}
@@ -104,7 +98,7 @@ export default function TopPage({ username }: { username: string }) {
                                 onMouseLeave={() => setMicHover(false)}
                                 style={{
                                     filter: micHover
-                                        ? 'hue-rotate(340deg)'
+                                        ? 'hue-rotate(30deg)'
                                         : 'none',
                                 }}
                             >
