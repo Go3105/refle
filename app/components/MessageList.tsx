@@ -6,7 +6,7 @@ interface MessageListProps {
   messages: Message[];
   currentTranscript: string;
   startTime: Date | null;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function MessageList({ 
@@ -27,11 +27,20 @@ export default function MessageList({
   const formatElapsedTime = (messageTime: Date): string => {
     if (!startTime) return '';
     
+    // startTimeからmessageTimeまでの経過時間を秒単位で計算
     const elapsedSeconds = Math.floor((messageTime.getTime() - startTime.getTime()) / 1000);
-    const minutes = Math.floor(elapsedSeconds / 60);
-    const seconds = elapsedSeconds % 60;
     
-    return `${minutes}分${seconds}秒`;
+    // 分と秒を計算
+    const absSeconds = Math.abs(elapsedSeconds);
+    const minutes = Math.floor(absSeconds / 60);
+    const seconds = absSeconds % 60;
+    
+    // 分がある場合は「分秒」、ない場合は「秒」だけ表示
+    if (minutes > 0) {
+      return `${minutes}分${seconds}秒`;
+    } else {
+      return `${seconds}秒`;
+    }
   };
   
   return (

@@ -75,12 +75,20 @@ export const DEFAULT_WELCOME_MESSAGE = 'こんにちは、今日は何をしま�
  * 秒数を分と秒の形式に変換する関数
  * 
  * @param seconds - 秒数
- * @returns フォーマットされた時間文字列（例：2分30秒）
+ * @returns フォーマットされた時間文字列（例：2分30秒、または30秒）
  */
 export function formatElapsedTime(seconds: number): string {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}分${remainingSeconds}秒`;
+    // 絶対値を使用して常に正の値で計算
+    const absSeconds = Math.abs(seconds);
+    const minutes = Math.floor(absSeconds / 60);
+    const remainingSeconds = absSeconds % 60;
+    
+    // 分がある場合は「分秒」、ない場合は「秒」だけ表示
+    if (minutes > 0) {
+        return `${minutes}分${remainingSeconds}秒`;
+    } else {
+        return `${remainingSeconds}秒`;
+    }
 }
 
 /**
