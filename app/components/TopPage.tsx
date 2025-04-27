@@ -35,6 +35,24 @@ export default function TopPage({ username }: { username: string }) {
             {(!showGreeting && !showConversation) && (
                 <div className="w-full h-20 bg-orange-300 absolute top-0 left-0 z-0" />
             )}
+            {showGreeting && (
+                <div className="fixed inset-0 z-0 pointer-events-none">
+                    <div className="w-full h-full animate-wave-bg" style={{
+                        background: `repeating-linear-gradient(-45deg, #fff7cc 0px, #fff7cc 10px, #fffde4 10px, #fffde4 20px)`,
+                        opacity: 0.7,
+                        backgroundSize: '40px 40px',
+                    }} />
+                    <style jsx global>{`
+                        @keyframes wave-bg {
+                            0% { background-position-x: 0; }
+                            100% { background-position-x: 40px; }
+                        }
+                        .animate-wave-bg {
+                            animation: wave-bg 2s linear infinite;
+                        }
+                    `}</style>
+                </div>
+            )}
             <div className="absolute top-4 right-4 flex items-center z-10">
                 <AccountMenu />
             </div>
