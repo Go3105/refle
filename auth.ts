@@ -12,7 +12,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         authorized({ auth, request }) {
             try {
                 if (!auth) {
-                    return false;
+                    return Response.redirect(new URL('/login', request.url));
                 }
                 return true;
             } catch (error) {

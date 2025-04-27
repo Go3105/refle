@@ -1,4 +1,4 @@
-import MicrophoneAnimation from '../../../public/MicrophoneAnimation.json';
+import MicrophoneAnimation from '../../public/MicrophoneAnimationYellow.json';
 import dynamic from 'next/dynamic';
 
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
