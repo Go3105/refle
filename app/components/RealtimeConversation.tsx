@@ -11,7 +11,7 @@
  */
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, RefObject } from 'react';
 import { Socket } from 'socket.io-client';
 import styles from './RealtimeConversation.module.css';
 
@@ -43,12 +43,10 @@ export default function RealtimeConversation() {
     const [conversationEnded, setConversationEnded] = useState(false); // 会話終了フラグ
     const [micPermission, setMicPermission] = useState<boolean | null>(null); // マイク許可状態
     const [recognitionRestart, setRecognitionRestart] = useState(false); // 音声認識再開フラグ
-    const [isMediaStreamSupported, setIsMediaStreamSupported] = useState<boolean>(true);
-    const [showSidePanel, setShowSidePanel] = useState<boolean>(false);
-    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [isEditing, setIsEditing] = useState<boolean>(false); // サマリ編集状態
 
     // Refオブジェクト
-    const messagesEndRef = useRef<HTMLDivElement>(null);        // メッセージ末尾への参照（自動スクロール用）
+    const messagesEndRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;        // メッセージ末尾への参照（自動スクロール用）
     const isMountedRef = useRef(true);
     const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 処理タイムアウト用
     const audioElementRef = useRef<HTMLAudioElement>(null);     // 音声再生用Audio要素
@@ -623,8 +621,8 @@ export default function RealtimeConversation() {
                     isDisabled={conversationEnded}
                 />
 
-                {showSidePanel && summary && (
-                    <div className="w-full lg:w-1/3 p-4">
+                {summary && (
+                    <div className="w-full p-4">
                         <SummaryDisplay 
                             summary={summary} 
                             onChange={handleSummaryChange} 

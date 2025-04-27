@@ -30,7 +30,7 @@ export interface MessageListProps {
     content: string;
     timestamp?: number;
   }>;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef?: React.RefObject<HTMLDivElement> | null;
 }
 
 export interface InputAreaProps {
