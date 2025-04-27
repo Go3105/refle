@@ -75,11 +75,19 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
   const recognitionRef = useRef<MySpeechRecognition | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const echoCancellationRef = useRef<EchoCancellation | null>(null);
+  const isMountedRef = useRef(true); // コンポーネントのマウント状態追跡用
   
   // 初期化状態の追跡
   const initRef = useRef({
     speechInitialized: false
   });
+
+  // 無音検出のための状態追跡
+  const lastSpeechRef = useRef<number>(Date.now());
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 無音検出の閾値（ミリ秒）
+  const SILENCE_THRESHOLD = 1500;
 
   // Socket.IOイベントの設定
   useEffect(() => {
@@ -133,9 +141,11 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
             socketRef.current.emit('speech-ended');
           }
           
-          // 音声認識が停止していれば再開
-          if (recognitionRef.current && !recognitionRef.current.running && !isProcessing) {
-            startListening();
+          // 音声認識が停止していれば再開（会話ターン制御のため）
+          if (!isProcessing) {
+            setTimeout(() => {
+              startListening();
+            }, 300); // 少し間を置いてから次の音声認識を開始
           }
         };
         
@@ -184,9 +194,9 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       const recognition = new SpeechRecognition();
       
       // 設定
-      recognition.continuous = true;      // 継続的に認識
-      recognition.interimResults = true;  // 中間結果も取得
-      recognition.lang = 'ja-JP';         // 日本語で認識
+      recognition.continuous = false;      // 単発認識モードに変更（一文認識したら停止）
+      recognition.interimResults = true;   // 中間結果も取得
+      recognition.lang = 'ja-JP';          // 日本語で認識
       
       // 状態追跡フラグ
       recognition.running = false;
@@ -202,11 +212,49 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         const isFinal = results.some(result => result.isFinal);
         
         console.log('音声認識結果:', transcript, isFinal ? '(確定)' : '(中間)');
-        setCurrentTranscript(transcript);
         
-        // 確定結果がある場合はメッセージを送信
-        if (isFinal && transcript.trim() && !isProcessing) {
-          handleSendMessage(transcript);
+        // 中間結果なら表示を更新
+        if (!isFinal) {
+          setCurrentTranscript(transcript);
+          
+          // 音声入力中として記録
+          lastSpeechRef.current = Date.now();
+          
+          // 既存の無音タイマーをクリア
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+          }
+          
+          // 新しい無音タイマーをセット
+          silenceTimerRef.current = setTimeout(() => {
+            // 一定時間発話がなければ文の区切りとみなす
+            if (Date.now() - lastSpeechRef.current >= SILENCE_THRESHOLD && transcript.trim()) {
+              console.log('無音検出により文の終了を判断:', transcript);
+              
+              // 認識を一時停止
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+              }
+              
+              // 認識結果を確定して送信
+              handleSendMessage(transcript);
+            }
+          }, SILENCE_THRESHOLD);
+        } else {
+          // 確定結果がある場合
+          setCurrentTranscript(transcript);
+          
+          // 無音タイマーをクリア
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+          
+          // 文として意味がある長さなら送信
+          if (transcript.trim() && !isProcessing) {
+            console.log('確定結果を送信:', transcript);
+            handleSendMessage(transcript);
+          }
         }
       };
       
@@ -230,54 +278,72 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       // 音声認識終了イベント
       recognition.onend = () => {
         console.log('音声認識が終了しました');
+        recognition.running = false;
         
-        // もし音声認識が明示的に停止されていなければ再開を試みる
-        if (recognition.running) {
-          console.log('音声認識は継続中のため再開を試みます');
-          
-          // 少し遅延させてから再開（処理中でなければ）
+        // 処理中でなければ、少し遅延してから新しい認識セッションを開始
+        if (!isProcessing) {
           setTimeout(() => {
-            if (recognition.running && !isProcessing) {
-              try {
-                recognition.start();
-                console.log('音声認識が再開されました');
-              } catch (error) {
-                console.error('音声認識の自動再開に失敗:', error);
-                
-                // 既に開始しているエラーは無視
-                if ((error as Error).message?.includes('already started')) {
-                  recognition.running = true;
-                } else {
-                  // 最後のリカバリー試行
-                  setTimeout(() => {
-                    if (isListening && !isProcessing) {
-                      try {
-                        recognition.running = true;
-                        recognition.start();
-                      } catch (lastError) {
-                        console.error('音声認識の最終再開試行に失敗:', lastError);
-                        recognition.running = false;
-                        setIsListening(false);
-                      }
-                    }
-                  }, 500);
-                }
-              }
+            if (isMountedRef.current) { // コンポーネントがマウントされている場合のみ実行
+              console.log('音声認識を再起動します (onend後)');
+              startListening();
             }
-          }, 300);
+          }, 500);
         } else {
-          console.log('音声認識は停止されました（自動再開なし）');
+          // 処理中の場合でも状態を更新
+          setIsListening(false);
         }
       };
       
       // 音声検出開始イベント
       recognition.onspeechstart = () => {
         console.log('音声入力開始を検出しました');
+        lastSpeechRef.current = Date.now();
       };
       
       // 音声検出終了イベント
       recognition.onspeechend = () => {
         console.log('音声入力の区切りを検出しました');
+        
+        // 音声入力が終了したら、少し待って結果が十分でなければ認識を停止
+        setTimeout(() => {
+          if (Date.now() - lastSpeechRef.current >= SILENCE_THRESHOLD && currentTranscript.trim()) {
+            console.log('音声入力終了により送信:', currentTranscript);
+            
+            // 現在の認識を停止
+            if (recognitionRef.current) {
+              try {
+                recognitionRef.current.stop();
+                // 次の認識のための状態リセット
+                setTimeout(() => {
+                  if (isMountedRef.current && !isProcessing) {
+                    console.log('音声認識を再開します (onspeechend後)');
+                    startListening();
+                  }
+                }, 500);
+              } catch (error) {
+                console.error('音声認識停止エラー (onspeechend):', error);
+              }
+            }
+            
+            // 現在の結果を送信
+            handleSendMessage(currentTranscript);
+          } else if (!currentTranscript.trim()) {
+            // 入力がなかった場合は単に再開
+            if (recognitionRef.current && !isProcessing) {
+              try {
+                recognitionRef.current.stop();
+                setTimeout(() => {
+                  if (isMountedRef.current) {
+                    console.log('空の入力で音声認識を再開します');
+                    startListening();
+                  }
+                }, 300);
+              } catch (error) {
+                console.error('音声認識停止エラー (空の入力):', error);
+              }
+            }
+          }
+        }, 300);
       };
       
       // 音声認識オブジェクトを保存
@@ -298,18 +364,28 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       console.error('このブラウザはWeb Speech APIをサポートしていません');
       alert('お使いのブラウザは音声認識をサポートしていません。Chrome、Edge、Safariなどの最新ブラウザをお試しください。');
     }
-  }, [isInitialized, isListening, isProcessing]);
+  }, [isInitialized, isListening, isProcessing, currentTranscript]);
   
   // コンポーネント初期化
   useEffect(() => {
     // 一度だけ初期化フラグを設定
     if (!isInitialized) {
-      console.log('音声認識の初期化を開始します...');
+      console.log('音声認識の初期化を開始します...', {
+        windowExists: typeof window !== 'undefined',
+        speechRecognitionExists: typeof window !== 'undefined' && ('SpeechRecognition' in window),
+        webkitSpeechRecognitionExists: typeof window !== 'undefined' && ('webkitSpeechRecognition' in window)
+      });
       setIsInitialized(true);
     }
     
+    // マウント状態を設定
+    isMountedRef.current = true;
+    
     // クリーンアップ関数
     return () => {
+      // マウント状態をリセット
+      isMountedRef.current = false;
+      
       // 音声認識を停止
       if (recognitionRef.current) {
         try {
@@ -324,6 +400,12 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       if (echoCancellationRef.current) {
         echoCancellationRef.current.stop();
       }
+      
+      // 無音タイマーをクリア
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
     };
   }, []);
   
@@ -331,9 +413,28 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
    * 音声認識を開始する関数
    */
   const startListening = async () => {
+    // 状態をリセット - 音声認識が途中で終了した場合の対策
+    if (recognitionRef.current && recognitionRef.current.running) {
+      console.log('開始前に既存の音声認識をリセットします');
+      try {
+        recognitionRef.current.stop();
+        recognitionRef.current.running = false;
+      } catch (error) {
+        console.error('音声認識リセットエラー:', error);
+      }
+    }
+    
+    // 少し遅延して再開始
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // 音声認識が利用可能かチェック
     if (!recognitionRef.current) {
-      console.log('音声認識を開始できません: SpeechRecognitionが初期化されていません');
+      console.log('音声認識を開始できません: SpeechRecognitionが初期化されていません', {
+        windowExists: typeof window !== 'undefined',
+        speechRecognitionExists: typeof window !== 'undefined' && ('SpeechRecognition' in window),
+        webkitSpeechRecognitionExists: typeof window !== 'undefined' && ('webkitSpeechRecognition' in window),
+        isInitialized: isInitialized
+      });
       
       // 音声認識が初期化されていない場合は、初期化を試みる
       if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
@@ -344,26 +445,43 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       return;
     }
     
-    // 処理中でも開始できるようにする（コメントアウト）
-    // if (isProcessing) {
-    //   console.log('音声認識を開始できません: 処理中です');
-    //   return;
-    // }
+    // 処理中なら開始しない
+    if (isProcessing) {
+      console.log('音声認識を開始できません: 処理中です', { isProcessing });
+      return;
+    }
     
     // 既に実行中なら何もしない
     if (isListening || (recognitionRef.current && recognitionRef.current.running)) {
-      console.log('音声認識は既に実行中です。状態を更新するだけにします。');
+      console.log('音声認識は既に実行中です。状態を更新するだけにします。', { 
+        isListening, 
+        recognitionRunning: recognitionRef.current?.running 
+      });
+      
+      // 状態の不一致を解消する追加コード
+      if (isListening && recognitionRef.current && !recognitionRef.current.running) {
+        console.log('状態の不一致を検出: isListening=true, recognitionRunning=false。認識を再起動します。');
+        try {
+          recognitionRef.current.running = true;
+          recognitionRef.current.start();
+        } catch (error) {
+          console.error('状態不一致解消中のエラー:', error);
+        }
+      }
+      
       setIsListening(true);
       return;
     }
     
-    console.log('音声認識を開始します...');
-    setCurrentTranscript('');
+    console.log('音声認識を開始します...', { isListening, isProcessing });
+    setCurrentTranscript(''); // 開始時に前の結果をクリア
     setIsListening(true);
     
     try {
       // マイクへのアクセスを取得
+      console.log('マイクアクセスを要求します...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('マイクアクセス許可を取得しました');
       
       // エコーキャンセリングを開始（オーディオ要素があれば）
       if (echoCancellationRef.current && audioRef.current) {
@@ -384,7 +502,10 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         initRef.current.speechInitialized = true;
       }
     } catch (error) {
-      console.error('音声認識開始エラー:', error);
+      console.error('音声認識開始エラー:', error, {
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      });
       
       // 既に開始されている場合は無視
       if ((error as Error).message && (error as Error).message.includes('already started')) {
@@ -397,7 +518,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         
         // 再試行
         setTimeout(() => {
-          if (!isProcessing) {  // isListeningチェックを削除
+          if (!isProcessing) {
             console.log('音声認識再試行...');
             startListening();
           }
@@ -410,39 +531,36 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
    * 音声認識を停止する関数
    */
   const stopListening = () => {
+    // 音声認識が利用可能かチェック
     if (!recognitionRef.current) {
-      console.log('音声認識を停止できません: recognitionRef不在');
+      console.log('音声認識を停止できません: SpeechRecognitionが初期化されていません');
       return;
     }
     
-    console.log('音声認識を停止します');
-    setIsListening(false);
-    
-    // 最後の文章を送信（停止前に）
-    if (currentTranscript.trim() && !isProcessing) {
-      handleSendMessage(currentTranscript);
-      return; // handleSendMessageの中で停止するので、ここでは早期リターン
-    }
+    console.log('音声認識を停止します...');
     
     try {
-      if (recognitionRef.current.running) {
-        recognitionRef.current.running = false;
-        recognitionRef.current.stop();
+      // 無音タイマーをクリア
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
       }
+      
+      // 音声認識を停止
+      recognitionRef.current.running = false;
+      recognitionRef.current.stop();
+      setIsListening(false);
     } catch (error) {
       console.error('音声認識停止エラー:', error);
-    }
-    
-    // エコーキャンセリングを停止
-    if (echoCancellationRef.current) {
-      echoCancellationRef.current.stop();
     }
   };
   
   /**
-   * 音声認識の開始/停止を切り替える関数
+   * 音声認識のトグル関数
    */
   const toggleListening = () => {
+    console.log('音声認識トグル: 現在の状態 =', isListening ? 'ON' : 'OFF');
+    
     if (isListening) {
       stopListening();
     } else {
@@ -451,58 +569,38 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
   };
   
   /**
-   * 音声認識されたテキストを送信する関数
+   * メッセージを送信する関数
    */
   const handleSendMessage = (text: string) => {
-    // 音声認識を一時停止
-    if (recognitionRef.current && (isListening || recognitionRef.current.running)) {
-      console.log('メッセージ送信中は音声認識を停止します');
-      // 状態は変更するが、停止はしない
-      setIsListening(false);
-      
-      try {
-        // 内部フラグのみ変更し、実際には停止しない
-        recognitionRef.current.running = false;
-        // recognitionRef.current.stop(); - 音声認識を停止しない
-      } catch (error) {
-        console.error('音声認識停止エラー:', error);
-      }
-      
-      // 少し遅延させてから音声認識を再開する準備をする
-      setTimeout(() => {
-        if (recognitionRef.current && !isProcessing) {
-          console.log('音声認識を自動的に再開します');
-          recognitionRef.current.running = true;
-          // 再開のためのタイマーをセット
-          setTimeout(() => {
-            try {
-              startListening();
-            } catch (e) {
-              console.error('自動再開エラー:', e);
-            }
-          }, 1000);
-        }
-      }, 500);
+    // 空のメッセージなら送信しない
+    if (!text.trim()) {
+      console.log('空のメッセージは送信しません');
+      return;
     }
     
-    // リセット
-    setCurrentTranscript('');
+    console.log('メッセージを送信:', text);
+    
+    // 認識を停止
+    stopListening();
+    
+    // 処理中状態に設定
     setIsProcessing(true);
     
-    // メッセージ送信コールバックを呼び出す
+    // メッセージを送信
     onMessageReady(text);
+    
+    // 入力フィールドをクリア
+    setCurrentTranscript('');
   };
   
+  // フックの戻り値
   return {
-    // 状態
     isListening,
     isProcessing,
     currentTranscript,
-    audioRef,
-    
-    // アクション
     startListening,
     stopListening,
     toggleListening,
+    audioRef
   };
 } 
