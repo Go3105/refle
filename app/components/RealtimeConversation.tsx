@@ -69,6 +69,8 @@ export default function RealtimeConversation() {
         },
         onAiResponse: (data) => {
             // AIのレスポンスをメッセージ一覧に追加
+            console.log('AI応答受信イベント発生:', data.text.substring(0, 30) + '...');
+            
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: data.text,
@@ -91,10 +93,10 @@ export default function RealtimeConversation() {
             // ここでは特に何もしない
         },
         onReadyForNextInput: (data) => {
+            console.log('次の入力準備完了:', data);
             if (data.keep_listening === true && !conversationEnded) {
+                // 処理中フラグを強制的にリセット
                 setIsProcessing(false);
-                
-                console.log('次の入力準備完了: 音声認識を再開します');
                 
                 // 処理タイムアウトがあれば解除
                 if (processingTimeoutRef.current) {
@@ -102,8 +104,34 @@ export default function RealtimeConversation() {
                     processingTimeoutRef.current = null;
                 }
                 
-                // 直接startListeningを呼び出さない
-                // 音声再生が完了した後に自動的に開始される
+                // サーバーからの状態リセット指示がある場合
+                if (data.reset_state) {
+                    console.log('サーバーからの指示により状態を完全リセットします');
+                    
+                    // 音声認識を一度完全に停止
+                    stopListening();
+                    
+                    // 少し待機してから再開
+                    setTimeout(() => {
+                        if (isMountedRef.current) {
+                            console.log('完全リセット後に音声認識を再開します');
+                            startListening();
+                        }
+                    }, 600);
+                    return;
+                }
+                
+                // 音声認識の再開を確実にするため、少し遅延を入れる
+                console.log('次の入力準備完了: 音声認識を500ms後に再開します');
+                setTimeout(() => {
+                    if (isMountedRef.current) {
+                        console.log('音声認識を再開します');
+                        // 音声認識が既に実行中でないことを確認してから開始
+                        if (!isListening) {
+                            startListening();
+                        }
+                    }
+                }, 500);
             }
         },
         onAudioStream: (data) => {
@@ -113,8 +141,25 @@ export default function RealtimeConversation() {
 
     // socketRefを内部Refに同期
     useEffect(() => {
-        socketRefInternal.current = socketRef.current;
-    }, [socketRef]);
+        if (socketRef.current) {
+            console.log('socketRef.currentが変更されました');
+            socketRefInternal.current = socketRef.current;
+            
+            // 接続状態を確認
+            socketRef.current.emit('ping');
+        }
+    }, [socketRef.current]);
+
+    // 1分ごとにping送信（接続維持）
+    useEffect(() => {
+        const pingInterval = setInterval(() => {
+            if (socketRef.current && isConnected && !conversationEnded) {
+                socketRef.current.emit('ping');
+            }
+        }, 60000);
+        
+        return () => clearInterval(pingInterval);
+    }, [socketRef.current, isConnected, conversationEnded]);
 
     // 音声認識フックの使用
     const {
@@ -253,21 +298,52 @@ export default function RealtimeConversation() {
                     
                     // 会話が終了していなければ、音声認識を自動的に開始
                     if (!conversationEnded && !isProcessing) {
+                        console.log('音声再生完了後に音声認識を再開します');
+                        // 処理中フラグをリセット
+                        setIsProcessing(false);
+                        
+                        // 音声認識を再開するための遅延を増やす - これが重要
                         setTimeout(() => {
                             if (isMountedRef.current) {
-                                startListening();
+                                console.log('音声再生完了から600ms後に音声認識を開始');
+                                
+                                // ready-for-next-inputのタイミングに関わらず音声認識を確実に再開
+                                if (!isListening) {
+                                    startListening();
+                                } else {
+                                    console.log('音声認識は既に実行中です - リセットして再開します');
+                                    stopListening();
+                                    setTimeout(() => startListening(), 200);
+                                }
                             }
-                        }, 300);
+                        }, 600); // 遅延を600msに増加
+                    }
+                };
+                
+                // 音声再生エラー時の対応を追加
+                audioElementRef.current.onerror = (e) => {
+                    console.error('音声再生エラー:', e);
+                    // エラー時も音声認識を再開
+                    if (!conversationEnded && !isProcessing && !isListening) {
+                        setTimeout(() => startListening(), 500);
                     }
                 };
                 
                 // 音声再生
                 audioElementRef.current.play().catch(error => {
                     console.error('音声再生エラー:', error);
+                    // エラー時も音声認識を再開
+                    if (!conversationEnded && !isProcessing && !isListening) {
+                        setTimeout(() => startListening(), 500);
+                    }
                 });
             }
         } catch (error) {
             console.error('音声データ処理エラー:', error);
+            // エラー時も音声認識を再開
+            if (!conversationEnded && !isProcessing && !isListening) {
+                setTimeout(() => startListening(), 500);
+            }
         }
     };
 
@@ -293,12 +369,10 @@ export default function RealtimeConversation() {
         
         console.log('メッセージを送信:', text);
         
-        // Socket.IOで送信
+        // Socket.IOで送信 - 'chat-message'ではなく'user-speech'イベントを使用
         if (socketRef?.current) {
-            socketRef.current.emit('chat-message', {
-                text: text,
-                timestamp: Date.now()
-            });
+            socketRef.current.emit('user-speech', text);
+            console.log('user-speechイベントを送信しました:', text);
             
             // 処理タイムアウトを設定（30秒後にタイムアウト）
             processingTimeoutRef.current = setTimeout(() => {

@@ -234,6 +234,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
               // 認識を一時停止
               if (recognitionRef.current) {
                 recognitionRef.current.stop();
+                recognitionRef.current.running = false;
               }
               
               // 認識結果を確定して送信
@@ -251,9 +252,19 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
           }
           
           // 文として意味がある長さなら送信
-          if (transcript.trim() && !isProcessing) {
+          if (transcript.trim()) {
             console.log('確定結果を送信:', transcript);
-            handleSendMessage(transcript);
+            
+            // 処理中でも確定結果は常に送信する
+            try {
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+                recognitionRef.current.running = false;
+              }
+              handleSendMessage(transcript);
+            } catch (error) {
+              console.error('音声認識結果送信エラー:', error);
+            }
           }
         }
       };
@@ -419,13 +430,17 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       try {
         recognitionRef.current.stop();
         recognitionRef.current.running = false;
+        
+        // 確実に状態をリセットするために少し待機
+        setIsListening(false);
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         console.error('音声認識リセットエラー:', error);
       }
     }
     
-    // 少し遅延して再開始
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // 少し遅延して再開始（安定性向上のため）
+    await new Promise(resolve => setTimeout(resolve, 150));
     
     // 音声認識が利用可能かチェック
     if (!recognitionRef.current) {
@@ -451,26 +466,29 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       return;
     }
     
-    // 既に実行中なら何もしない
+    // 既に実行中なら一度停止してから開始
     if (isListening || (recognitionRef.current && recognitionRef.current.running)) {
-      console.log('音声認識は既に実行中です。状態を更新するだけにします。', { 
+      console.log('音声認識は既に実行中です。一度停止してから再開します。', { 
         isListening, 
         recognitionRunning: recognitionRef.current?.running 
       });
       
-      // 状態の不一致を解消する追加コード
-      if (isListening && recognitionRef.current && !recognitionRef.current.running) {
-        console.log('状態の不一致を検出: isListening=true, recognitionRunning=false。認識を再起動します。');
-        try {
-          recognitionRef.current.running = true;
-          recognitionRef.current.start();
-        } catch (error) {
-          console.error('状態不一致解消中のエラー:', error);
-        }
+      try {
+        // 既存の認識を停止
+        recognitionRef.current.stop();
+        recognitionRef.current.running = false;
+        setIsListening(false);
+        
+        // 少し待ってから再開
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (error) {
+        console.error('実行中の音声認識停止エラー:', error);
+        
+        // エラーが発生した場合でも状態をリセット
+        recognitionRef.current.running = false;
+        setIsListening(false);
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
-      
-      setIsListening(true);
-      return;
     }
     
     console.log('音声認識を開始します...', { isListening, isProcessing });
@@ -489,12 +507,34 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         await echoCancellationRef.current.start(stream, audioStream);
       }
       
+      // 実行中でないことを再確認（非同期処理の間に状態が変わった可能性がある）
+      if (recognitionRef.current.running) {
+        console.log('マイクアクセス取得後に実行中フラグを検出しました。開始をスキップします。');
+        return;
+      }
+      
       // まずフラグを設定
       recognitionRef.current.running = true;
       
-      // 直接開始を試みる
-      recognitionRef.current.start();
-      console.log('音声認識が開始されました');
+      // 実行中でないことを確認してから開始
+      try {
+        // 直接開始を試みる
+        recognitionRef.current.start();
+        console.log('音声認識が開始されました');
+      } catch (startError) {
+        // 開始に失敗した場合
+        console.error('音声認識開始エラー（内部）:', startError);
+        
+        // 既に開始されている場合は成功として扱う
+        if ((startError as Error).message?.includes('already started')) {
+          console.log('音声認識は既に開始されています。成功として処理します。');
+          recognitionRef.current.running = true;
+        } else {
+          // その他のエラーはフラグをリセット
+          recognitionRef.current.running = false;
+          throw startError; // 上位のcatchで処理するために再スロー
+        }
+      }
       
       // マイクへのアクセス許可を促すメッセージ（初回のみ）
       if (!initRef.current.speechInitialized) {
@@ -546,12 +586,24 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         silenceTimerRef.current = null;
       }
       
-      // 音声認識を停止
-      recognitionRef.current.running = false;
-      recognitionRef.current.stop();
+      // 音声認識が実行中かチェック
+      if (recognitionRef.current.running) {
+        console.log('実行中の音声認識を停止します');
+        // 音声認識を停止
+        recognitionRef.current.running = false;
+        recognitionRef.current.stop();
+      } else {
+        console.log('音声認識は既に停止しています');
+      }
+      
+      // 状態を更新
       setIsListening(false);
+      setCurrentTranscript(''); // トランスクリプトをクリア
     } catch (error) {
       console.error('音声認識停止エラー:', error);
+      // エラーが発生しても状態をリセット
+      recognitionRef.current.running = false;
+      setIsListening(false);
     }
   };
   
@@ -578,19 +630,35 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
       return;
     }
     
-    console.log('メッセージを送信:', text);
+    console.log('メッセージを送信します:', text);
     
     // 認識を停止
     stopListening();
     
+    // 現在の状態をログ出力
+    console.log('メッセージ送信前の状態:', { isListening, isProcessing });
+    
     // 処理中状態に設定
     setIsProcessing(true);
     
-    // メッセージを送信
-    onMessageReady(text);
-    
     // 入力フィールドをクリア
     setCurrentTranscript('');
+    
+    // 直接socketRefを使用してメッセージを送信する試み
+    try {
+      if (socketRef?.current) {
+        console.log('直接socketRefを使用してユーザー発話を送信:', text);
+        socketRef.current.emit('user-speech', text);
+      }
+    } catch (error) {
+      console.error('Socket.IOでの直接送信エラー:', error);
+    }
+    
+    // ユーザーメッセージを送信（コンポーネントのコールバック経由）
+    onMessageReady(text);
+    
+    // 送信完了をログ出力
+    console.log('メッセージ送信完了、処理中状態に設定:', { isProcessing: true });
   };
   
   // フックの戻り値
