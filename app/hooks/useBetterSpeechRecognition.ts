@@ -77,6 +77,9 @@ export function useBetterSpeechRecognition({
     langCode
   });
   
+  // 無音検出の閾値（ミリ秒）- これを追加
+  const SILENCE_THRESHOLD = 5000; // 5秒間の無音を許容
+  
   // 設定値の更新
   useEffect(() => {
     configRef.current = {

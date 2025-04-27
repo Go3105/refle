@@ -87,7 +87,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // 無音検出の閾値（ミリ秒）
-  const SILENCE_THRESHOLD = 1500;
+  const SILENCE_THRESHOLD = 5000; // 5秒に延長
 
   // Socket.IOイベントの設定
   useEffect(() => {
