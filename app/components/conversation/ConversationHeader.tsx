@@ -5,11 +5,13 @@
 import React from 'react';
 
 interface ConversationHeaderProps {
-    isConnected: boolean;
+    isConnected?: boolean;
     onEndSession: () => void;
+    isProcessing?: boolean;
+    isDisabled?: boolean;
 }
 
-export default function ConversationHeader({ isConnected, onEndSession }: ConversationHeaderProps) {
+export default function ConversationHeader({ isConnected = true, onEndSession, isProcessing, isDisabled }: ConversationHeaderProps) {
     return (
         <header className="flex justify-between items-center p-4 bg-pink-50 shadow-sm">
             <h1 className="text-xl font-bold">リアルタイム音声会話</h1>
@@ -21,6 +23,7 @@ export default function ConversationHeader({ isConnected, onEndSession }: Conver
                 <button
                     onClick={onEndSession}
                     className="px-4 py-2 bg-pink-100 rounded-lg hover:bg-pink-200"
+                    disabled={isDisabled || isProcessing}
                 >
                     終了
                 </button>

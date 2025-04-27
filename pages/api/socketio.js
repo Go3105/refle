@@ -70,7 +70,8 @@ export default function handler(req, res) {
                 lastResponseTime: Date.now(), // 最後の応答時間
                 // プロンプトライブラリから初期会話履歴を作成
                 // 引数なしで呼び出し - 関数内部でデフォルト値が使用される
-                conversationHistory: createInitialConversationHistory()
+                conversationHistory: createInitialConversationHistory(),
+                sequenceCounter: 1
             };
 
             /**
@@ -92,10 +93,47 @@ export default function handler(req, res) {
                     // 音声合成の開始後、さらに遅延させてから音声認識開始の準備完了通知を送信
                     setTimeout(() => {
                         // 音声認識がすぐに開始されるように通知（継続リスニングモードを有効化）
-                        socket.emit('ready-for-next-input', { status: 'ready', keep_listening: true });
+                        sendReadyForNextInput(socket, {
+                            keep_listening: true,
+                            first_message: true
+                        });
                     }, 2000); // 音声合成開始から2秒後
                 }, 500);  // UI更新から0.5秒後
             }, 2000);  // 接続から2秒後
+
+            /**
+             * ReadyForNextInputイベントを送信する関数
+             * 状態とデータを統一して送信するためのユーティリティ関数
+             * 
+             * @param {Object} socket - Socket.IOソケットオブジェクト
+             * @param {Object} options - 追加オプション
+             */
+            function sendReadyForNextInput(socket, options = {}) {
+                const timestamp = Date.now();
+                console.log('次の入力準備完了信号を送信', {
+                    timestamp,
+                    ...options
+                });
+                
+                // 基本設定
+                const eventData = {
+                    status: 'ready',
+                    keep_listening: true,
+                    timestamp,
+                    sequence_id: clientState.sequenceCounter++,
+                    reset_state: true,
+                    ...options
+                };
+                
+                // イベント送信
+                socket.emit('ready-for-next-input', eventData);
+                
+                // イベント直後の処理完了確認
+                setTimeout(() => {
+                    clientState.isProcessing = false;
+                    console.log('★次の入力受付準備完了、isProcessing =', clientState.isProcessing);
+                }, 100);
+            }
 
             /**
              * ユーザーからの音声認識テキスト受信イベントハンドラー
@@ -110,7 +148,10 @@ export default function handler(req, res) {
                 // 連続した同じメッセージや短すぎるメッセージは処理しない（無音や認識エラー対策）
                 if (!text || text.trim().length < 2) {
                     // 音声認識を継続させる
-                    socket.emit('ready-for-next-input', { status: 'ready', keep_listening: true });
+                    sendReadyForNextInput(socket, {
+                        keep_listening: true,
+                        first_message: false
+                    });
                     return;
                 }
 
@@ -269,16 +310,11 @@ export default function handler(req, res) {
 
                             setTimeout(() => {
                                 console.log('次の入力準備完了信号を送信します');
-                                // 音声認識を継続するフラグを追加
-                                socket.emit('ready-for-next-input', { 
-                                    status: 'ready', 
-                                    keep_listening: true,
-                                    timestamp: Date.now(),
-                                    reset_state: true // クライアント側の状態をリセットするフラグ
+                                // 統一関数を使って送信
+                                sendReadyForNextInput(socket, {
+                                    source: 'ai_response_complete', 
+                                    reset_state: true
                                 });
-                                // 確実に処理状態をリセット
-                                clientState.isProcessing = false;
-                                console.log('★次の入力受付準備完了、isProcessing =', clientState.isProcessing);
                             }, 3000); // 3秒後に音声認識を再開できるようにする
                         }, 300);
                     }, 800);
@@ -298,10 +334,7 @@ export default function handler(req, res) {
                     }
 
                     // エラー時も次の入力を促す（音声認識は継続）
-                    socket.emit('ready-for-next-input', { 
-                        status: 'ready', 
-                        keep_listening: true,
-                        reset_state: true,
+                    sendReadyForNextInput(socket, {
                         error: true
                     });
                     
@@ -376,7 +409,10 @@ export default function handler(req, res) {
                     // 3秒後に次の入力準備完了を送信（明示的なタイムアウト）
                     setTimeout(() => {
                         console.log('音声合成完了後、次の入力準備完了信号を送信します');
-                        socket.emit('ready-for-next-input', { status: 'ready', keep_listening: true });
+                        // 統一関数を使って送信
+                        sendReadyForNextInput(socket, {
+                            source: 'speech_synthesis_complete'
+                        });
                     }, 3000);
                 } catch (error) {
                     console.error('音声合成エラー:', error);
@@ -399,11 +435,8 @@ export default function handler(req, res) {
 
                 // 音声認識を継続させる通知
                 console.log('エラー発生により即座に次の入力準備完了信号を送信');
-                socket.emit('ready-for-next-input', { 
-                    status: 'ready', 
-                    error: true, 
-                    keep_listening: true,
-                    reset_state: true
+                sendReadyForNextInput(socket, {
+                    error: true
                 });
                 
                 // 確実に状態をリセット
@@ -433,6 +466,9 @@ export default function handler(req, res) {
             socket.on('disconnect', () => {
                 console.log('クライアント切断:', socket.id);
             });
+
+            // クライアント接続時に初期化
+            clientState.sequenceCounter = 1;
         });
 
         console.log('Socket.IOルートハンドラーの処理を完了しました');

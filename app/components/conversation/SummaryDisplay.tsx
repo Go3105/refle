@@ -8,9 +8,10 @@ interface SummaryDisplayProps {
     summary: string;
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
     onSave: () => void;
+    isEditing: boolean;
 }
 
-export default function SummaryDisplay({ summary, onChange, onSave }: SummaryDisplayProps) {
+export default function SummaryDisplay({ summary, onChange, onSave, isEditing }: SummaryDisplayProps) {
     return (
         <div className="mt-8 p-4 bg-white rounded-lg shadow">
             <h2 className="text-lg font-bold mb-2">会話のサマリ</h2>
@@ -19,6 +20,7 @@ export default function SummaryDisplay({ summary, onChange, onSave }: SummaryDis
                     className="w-full p-2 border rounded-md min-h-[150px]"
                     value={summary}
                     onChange={onChange}
+                    readOnly={!isEditing}
                 ></textarea>
                 <div className="flex justify-end">
                     <button
