@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { updateUserNotionData } from '../../../../lib/userdata';
+import { updateUserNotionData } from '@/lib/userdata';
 import { auth } from '@/auth';
 
 export const runtime = 'edge';
