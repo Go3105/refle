@@ -19,7 +19,6 @@ import styles from './RealtimeConversation.module.css';
 import { ConversationHeader, MessageList, InputArea, SummaryDisplay } from '../components/conversation';
 import useSpeech from '../lib/hooks/useSpeech';
 import { useSocketConnection } from '../hooks/useSocketConnection';
-import { shouldEndConversation, createEndConversationMessages } from '@/app/lib/conversation/conversationRules';
 
 /**
  * メッセージデータの型定義

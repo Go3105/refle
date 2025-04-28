@@ -51,25 +51,25 @@ export const CONVERSATION_PHASES: PhaseConfig[] = [
 洗い出す際にはメインの活動が知れればよいです。`,
         behavior: {
             temperature: 0.7,
-            maxOutputTokens: 100,
+            maxOutputTokens: 15,
             showVisualHint: true,
         }
     },
     {
         id: 'middle_stage',
         name: '深掘り',
-        duration: { start: 60, end: 120 },
+        duration: { start: 60, end: 540 },
         prompt: `洗い出した活動の中で、端的な質問で活動内容をふかぼります。深ぼる際は良かったこと→課題→次回への修正点の順で質問します`,
         behavior: {
             temperature: 0.8,
-            maxOutputTokens: 150,
+            maxOutputTokens: 30,
             showVisualHint: true,
         }
     },
     {
         id: 'closing_stage',
         name: 'クロージング',
-        duration: { start: 120, end: 180 },
+        duration: { start: 540, end: 600 },
         prompt: `クロージングをします`,
         behavior: {
             temperature: 0.7,
@@ -112,12 +112,12 @@ export const SYSTEM_PROMPT: PromptTemplate = {
     content: `プロの1on1コーチです。
 ユーザーの一日の振り返りを手伝います。
 
-現在知りたいこと: 
+current_question: 
 {currentPhase}
 本テーマは残り{remainingTime}です
 
-従うガイドライン：
-1. "現在知りたいこと"を時間内に聞き出す
+guideline:
+1. current_questionを時間内に聞き出すのが目標
 2. 相手の言葉を引き出すための質問を続けます
 3. 相手が話した内容に関連する質問を行います
 4. 常に日本語で応答します
@@ -125,6 +125,9 @@ export const SYSTEM_PROMPT: PromptTemplate = {
 
 context:
 現在の時間は{currentTime}
+
+user_profile:
+{user_profile}
 `
 };
 
@@ -240,9 +243,10 @@ export class ConversationPhaseManager {
      * 
      * @param elapsedSeconds - 経過秒数
      * @param currentTime - 現在の時間
+     * @param userProfile - ユーザープロファイル情報
      * @returns 現在のフェーズと残り時間を含むシステムプロンプト
      */
-    createSystemPrompt(elapsedSeconds: number, currentTime: string): PromptTemplate {
+    createSystemPrompt(elapsedSeconds: number, currentTime: string, userProfile?: string): PromptTemplate {
         const currentPhase = this.getPromptForPhase(elapsedSeconds);
         const remainingTime = this.getFormattedRemainingTime(elapsedSeconds);
         return {
@@ -251,6 +255,7 @@ export class ConversationPhaseManager {
                 .replace('{currentTime}', currentTime)
                 .replace('{currentPhase}', currentPhase)
                 .replace('{remainingTime}', remainingTime)
+                .replace('{user_profile}', userProfile || '')
         };
     }
 
@@ -258,9 +263,10 @@ export class ConversationPhaseManager {
      * 初期会話履歴を生成する
      * 
      * @param currentTime - 現在の時間
+     * @param userProfile - ユーザープロファイル情報
      * @returns 初期会話履歴の配列
      */
-    createInitialConversationHistory(currentTime: string): PromptTemplate[] {
+    createInitialConversationHistory(currentTime: string, userProfile?: string): PromptTemplate[] {
         return [
             {
                 role: 'system',
@@ -268,6 +274,7 @@ export class ConversationPhaseManager {
                     .replace('{currentTime}', currentTime)
                     .replace('{currentPhase}', this.getPromptForPhase(0))
                     .replace('{remainingTime}', this.formatElapsedTime(CONVERSATION_PHASES[0].duration.end))
+                    .replace('{user_profile}', userProfile || '')
             },
             {
                 role: 'assistant',
@@ -339,17 +346,17 @@ export function calculateRemainingTime(elapsedSeconds: number): string {
 }
 
 // システムプロンプトを生成する関数
-export function createSystemPrompt(elapsedSeconds: number, currentTime: string): PromptTemplate {
-    return phaseManager.createSystemPrompt(elapsedSeconds, currentTime);
+export function createSystemPrompt(elapsedSeconds: number, currentTime: string, userProfile?: string): PromptTemplate {
+    return phaseManager.createSystemPrompt(elapsedSeconds, currentTime, userProfile);
 }
 
 // 初期会話履歴を生成する関数
-export function createInitialConversationHistory(sessionTime?: SessionTime): PromptTemplate[] {
+export function createInitialConversationHistory(sessionTime?: SessionTime, userProfile?: string): PromptTemplate[] {
     // 引数が省略された場合や不正な値の場合にデフォルト値を使用
     const defaultSessionTime = setSessionStartTime();
     const currentTime = sessionTime?.startTime || defaultSessionTime.startTime;
 
-    return phaseManager.createInitialConversationHistory(currentTime);
+    return phaseManager.createInitialConversationHistory(currentTime, userProfile);
 }
 
 export const SUMMARY_PROMPT = {
