@@ -31,9 +31,6 @@ export interface Message {
     timestamp?: number;          // 送信タイムスタンプ
 }
 
-// Socket.IOサーバーのURL
-const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:3001';
-
 // 会話の状態を表す型定義
 type ConversationStatus =
     | 'idle'           // 待機中
