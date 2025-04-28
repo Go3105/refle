@@ -2,7 +2,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    background-color: #f9fafb;
+    background-color: #F2FDF5;
 }
 
 .summaryForm {
@@ -61,7 +61,7 @@
 
 .endForm {
     padding: 1.5rem;
-    background-color: white;
+    background-color: #F2FDF5;
     border-top: 1px solid #e5e7eb;
     text-align: center;
 }

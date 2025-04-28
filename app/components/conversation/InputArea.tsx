@@ -2,7 +2,8 @@
  * app/components/conversation/InputArea.tsx
  * 音声入力エリアのコンポーネント
  */
-import React, { useState, KeyboardEvent, useEffect } from 'react';
+import React from 'react';
+import { Mic } from 'lucide-react';
 
 interface InputAreaProps {
     isListening: boolean;
@@ -10,6 +11,7 @@ interface InputAreaProps {
     currentTranscript: string;
     toggleListening: () => void;
     onSendMessage: (message: string) => void;
+    onEndSession: () => void;
     isDisabled?: boolean;
 }
 
@@ -19,148 +21,55 @@ export default function InputArea({
     currentTranscript, 
     toggleListening,
     onSendMessage,
+    onEndSession,
     isDisabled = false
 }: InputAreaProps) {
-    const [inputText, setInputText] = useState('');
-    const [listeningDuration, setListeningDuration] = useState(0);
-    
-    // 音声認識中のアニメーション用タイマー
-    useEffect(() => {
-        let timer: NodeJS.Timeout | null = null;
-        
-        if (isListening) {
-            // 音声認識中は200msごとにカウンターを増やす
-            timer = setInterval(() => {
-                setListeningDuration(prev => prev + 1);
-            }, 200);
-        } else {
-            // 音声認識が停止したらリセット
-            setListeningDuration(0);
-        }
-        
-        return () => {
-            if (timer) clearInterval(timer);
-        };
-    }, [isListening]);
-    
-    // Enterキーでメッセージを送信
-    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isProcessing && !isDisabled) {
-            e.preventDefault();
-            onSendMessage(inputText);
-            setInputText('');
-        }
-    };
-    
-    // 送信ボタンのクリックハンドラ
-    const handleSend = () => {
-        if (inputText.trim() && !isProcessing && !isDisabled) {
-            onSendMessage(inputText);
-            setInputText('');
-        }
-    };
-    
-    // 音声認識の波形表現（アニメーション用）
-    const renderWaveForm = () => {
-        const bars = 5;
-        const range = (listeningDuration % 10) + 1;
-        
-        return (
-            <div className="flex items-center gap-1 ml-2">
-                {Array.from({ length: bars }).map((_, i) => {
-                    const height = Math.sin((i + range) * 0.5) * 16 + 16;
-                    return (
-                        <div 
-                            key={i}
-                            className="bg-green-400 w-1 rounded-full transition-all duration-200"
-                            style={{ height: `${height}px` }}
-                        />
-                    );
-                })}
-            </div>
-        );
-    };
     
     return (
-        <div className="p-4 bg-white border-t">
-            <div className="max-w-3xl mx-auto flex items-center gap-2">
-                {/* 音声入力表示部分 - 認識している内容をリアルタイム表示 */}
-                {isListening && currentTranscript && !isProcessing && (
-                    <div className="flex-1 p-3 min-h-12 border rounded-lg bg-green-50 flex items-center">
-                        <div className="break-words flex-1">{currentTranscript}</div>
-                        {renderWaveForm()}
+        <div className="bg-white border-t border-gray-200 p-4">
+            <div className="flex flex-col items-center">
+                {/* 音声認識中の表示 */}
+                {isListening && currentTranscript ? (
+                    <div className="w-full mb-4 p-3 border border-gray-300 rounded-full bg-green-50">
+                        {currentTranscript}
                     </div>
-                )}
-                
-                {/* 音声入力待機中の表示 */}
-                {isListening && !currentTranscript && !isProcessing && (
-                    <div className="flex-1 p-3 min-h-12 border rounded-lg bg-blue-50 flex items-center">
-                        <div className="flex-1">どうぞお話しください...</div>
-                        {renderWaveForm()}
+                ) : isListening ? (
+                    <div className="w-full mb-4 p-3 border border-gray-300 rounded-full bg-gray-50">
+                        どうぞお話しください...
                     </div>
-                )}
-                
-                {/* AIの処理中表示 */}
-                {isProcessing && (
-                    <div className="flex-1 p-3 min-h-12 border rounded-lg bg-pink-50 flex items-center">
-                        <div className="flex-1">AIが考え中...</div>
-                        <div className="ml-2 w-4 h-4 rounded-full bg-pink-400 animate-ping opacity-75"></div>
+                ) : isProcessing ? (
+                    <div className="w-full mb-4 p-3 border border-gray-300 rounded-full bg-gray-50">
+                        AIが考え中...
                     </div>
-                )}
+                ) : null}
                 
-                {/* テキスト入力フィールド (会話中かつ音声認識中でもない、処理中でもない場合に表示) */}
-                {!isListening && !isProcessing && (
-                    <div className="flex-1 flex">
-                        <input
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="メッセージを入力..."
-                            className={`flex-1 p-3 border rounded-l-lg ${isDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
-                            disabled={isDisabled}
-                        />
-                        <button
-                            onClick={handleSend}
-                            disabled={!inputText.trim() || isDisabled}
-                            className={`px-4 py-2 rounded-r-lg ${!inputText.trim() || isDisabled ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                        </button>
-                    </div>
-                )}
-                
-                {/* 音声認識の開始/停止ボタン */}
+                {/* マイクボタン */}
                 <button
+                    type="button"
                     onClick={toggleListening}
                     disabled={isDisabled || isProcessing}
-                    className={`p-3 rounded-full flex-shrink-0 transition-all duration-300 hover:scale-110
-                        ${isDisabled ? 'bg-gray-400 text-white cursor-not-allowed' :
-                          isProcessing ? 'bg-gray-400 text-white cursor-not-allowed' :
-                          isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-500 text-white'
-                        }`}
-                    title={isListening ? "音声認識を停止" : "音声認識を開始"}
+                    className={`p-5 rounded-full transition-all mb-4 ${
+                        isListening 
+                            ? 'bg-red-500 text-white animate-pulse' 
+                            : isDisabled || isProcessing
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-500 text-white hover:bg-green-600'
+                    }`}
                 >
-                    {/* 状態に応じてアイコンを切り替え */}
-                    {isListening ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="6" y="6" width="12" height="12" />
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                            <line x1="12" y1="19" x2="12" y2="22" />
-                        </svg>
-                    )}
+                    <Mic className="h-8 w-8" />
+                </button>
+                
+                {/* 会話終了ボタン */}
+                <button
+                    onClick={onEndSession}
+                    className="px-6 py-2.5 bg-green-500 text-white rounded-full hover:bg-green-600 transition-all"
+                >
+                    会話を終了してサマリを作成
                 </button>
             </div>
             
             {/* 操作ガイドメッセージ */}
-            <div className="max-w-3xl mx-auto mt-2 text-center text-sm text-gray-500">
+            <div className="text-center text-xs mt-4 text-gray-500">
                 {isDisabled ? 
                     "会話は終了しました" :
                     isProcessing ? 
@@ -169,7 +78,7 @@ export default function InputArea({
                             currentTranscript ? 
                                 "音声を認識しています..." : 
                                 "マイクがオンです。お話しください" :
-                            "音声ボタンを押すか、テキストを入力してください"
+                            "マイクボタンを押して会話を始めてください"
                 }
             </div>
         </div>

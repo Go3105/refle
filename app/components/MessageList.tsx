@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import Image from 'next/image';
+import { Bot, User } from 'lucide-react';
 import { Message } from '../lib/hooks/useChat';
 
 interface MessageListProps {
@@ -44,48 +44,64 @@ export default function MessageList({
   };
   
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {/* 会話メッセージ */}
-      {messages.map((message, index) => (
-        <div
-          key={index}
-          className={`mb-4 ${message.role === 'user'
-            ? 'ml-auto bg-pink-100'
-            : 'mr-auto bg-white flex items-start'
-            } p-3 rounded-lg max-w-[80%]`}
-        >
-          {/* AIメッセージにはアイコンを表示 */}
-          {message.role === 'assistant' && (
-            <div className="mr-2 flex-shrink-0">
-              <Image
-                src="/ai_character.png"
-                width={40}
-                height={40}
-                alt="AI character"
-                className="rounded-full"
-              />
+    <div className="flex-1 overflow-y-auto p-4" style={{ backgroundColor: '#FFFFFF' }}>
+      <div className="max-w-3xl mx-auto">
+        {/* 会話メッセージ */}
+        {messages.map((message, index) => (
+          <div key={index} className={`flex ${message.role === 'assistant' ? 'justify-start' : 'justify-end'} mb-4 animate-fadeIn`}>
+            <div className={`flex ${message.role === 'assistant' ? 'flex-row' : 'flex-row-reverse'} max-w-[80%]`}>
+              <div className={`flex-shrink-0 ${message.role === 'assistant' ? 'mr-3' : 'ml-3'} self-end`}>
+                {message.role === 'assistant' ? (
+                  <div className="bg-green-100 p-1 rounded-full">
+                    <Bot className="h-6 w-6 text-green-600" />
+                  </div>
+                ) : (
+                  <div className="bg-gray-100 p-1 rounded-full">
+                    <User className="h-6 w-6 text-gray-600" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <div 
+                  className={`p-3 rounded-2xl ${message.role === 'assistant' 
+                    ? 'bg-[#F2FDF5] text-gray-800 rounded-tl-none shadow-sm' 
+                    : 'bg-green-500 text-white rounded-tr-none shadow-sm'
+                  }`}
+                >
+                  {message.content}
+                </div>
+                {startTime && (
+                  <div className={`text-xs mt-1 text-gray-500 ${message.role === 'assistant' ? 'text-left' : 'text-right'}`}>
+                    {formatElapsedTime(message.timestamp)}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          <div>
-            <p>{message.content}</p>
-            {startTime && (
-              <p className="text-xs text-gray-500 mt-1">
-                {formatElapsedTime(message.timestamp)}
-              </p>
-            )}
           </div>
-        </div>
-      ))}
-      
-      {/* 音声認識中のテキスト */}
-      {currentTranscript && (
-        <div className="ml-auto bg-gray-100 p-3 rounded-lg max-w-[80%] italic">
-          <p>{currentTranscript}</p>
-        </div>
-      )}
-      
-      {/* スクロール位置調整用の参照ポイント */}
-      <div ref={messagesEndRef} />
+        ))}
+        
+        {/* 音声認識中のテキスト */}
+        {currentTranscript && (
+          <div className="flex justify-end mb-4">
+            <div className="flex flex-row-reverse max-w-[80%]">
+              <div className="flex-shrink-0 ml-3 self-end">
+                <div className="bg-gray-100 p-1 rounded-full">
+                  <User className="h-6 w-6 text-gray-600" />
+                </div>
+              </div>
+              <div>
+                <div className="p-3 rounded-2xl bg-green-100 text-gray-800 rounded-tr-none shadow-sm opacity-70">
+                  {currentTranscript}
+                </div>
+                <div className="text-xs mt-1 text-right text-gray-500">認識中...</div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* スクロール位置調整用の参照ポイント */}
+        <div ref={messagesEndRef} />
+      </div>
     </div>
   );
 } 
