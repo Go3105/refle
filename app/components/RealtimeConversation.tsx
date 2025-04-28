@@ -435,7 +435,6 @@ export default function RealtimeConversation() {
         console.log('現在時刻:', new Date().toISOString());
         console.log('経過時間:', (Date.now() - conversationStartTime) / 1000, '秒');
 
-        let timeoutId: NodeJS.Timeout;
         let isEnding = false;  // 終了処理中フラグ
 
         const endConversation = () => {
@@ -486,7 +485,7 @@ export default function RealtimeConversation() {
         const timeUntilEnd = 60000 - elapsedTime;
         console.log('タイマーを設定します。残り時間:', timeUntilEnd / 1000, '秒');
 
-        timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(() => {
             console.log('タイマーが発火しました');
             endConversation();
         }, timeUntilEnd);
