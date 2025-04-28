@@ -39,9 +39,6 @@ export default function AccountMenu() {
                     <Link href="/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                         設定
                     </Link>
-                    <Link href="/add" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                        追加
-                    </Link>
                 </div>
             )}
         </div>
