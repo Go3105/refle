@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import GreenAnimation from '../../public/MicrophoneAnimationGreen.json';
 import BlueAnimation from '../../public/MicrophoneAnimationBlue.json';
 import dynamic from 'next/dynamic';
