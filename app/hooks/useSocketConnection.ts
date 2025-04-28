@@ -8,16 +8,30 @@ import type { Socket } from 'socket.io-client';
 interface SocketConnectionCallbacks {
     onConnect?: () => void;
     onAiResponse?: (data: { text: string }) => void;
-    onReadyForNextInput?: (data: { keep_listening: boolean }) => void;
-    onAudioStream?: (data: { audio: string; contentType: string; text: string }) => void;
-    onTtsStatus?: (data: any) => void;
-    onError?: (error: any) => void;
+    onReadyForNextInput?: (data: { keep_listening?: boolean; reset_state?: boolean }) => void;
+    onAudioStream?: (data: { audio: string; contentType: string }) => void;
+    onTtsStatus?: (data: { status: string; error?: string }) => void;
+    onError?: (error: SocketError) => void;
     onDisconnect?: () => void;
 }
 
-interface Message {
+interface SocketEventData {
+    text?: string;
+    audio?: string;
+    contentType?: string;
+    keep_listening?: boolean;
+    reset_state?: boolean;
+    [key: string]: unknown;
+}
+
+interface SocketEvent {
     type: string;
-    data: unknown;
+    data: SocketEventData;
+}
+
+interface SocketError {
+    message: string;
+    code?: string;
 }
 
 export function useSocketConnection(callbacks: SocketConnectionCallbacks = {}) {
@@ -127,7 +141,7 @@ export function useSocketConnection(callbacks: SocketConnectionCallbacks = {}) {
     /**
      * Socket接続を送信する
      */
-    const sendMessage = (eventName: string, data: any) => {
+    const sendMessage = (eventName: string, data: SocketEventData) => {
         if (socketRef.current && isConnected) {
             socketRef.current.emit(eventName, data);
             return true;

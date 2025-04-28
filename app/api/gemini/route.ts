@@ -28,6 +28,12 @@ const ai = new GoogleGenAI({
  * シングルトンパターン: アプリケーション全体で唯一のインスタンスを保証する設計パターン
  * 会話の履歴や時間を管理する
  */
+interface ConversationMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
+
+// セッション管理用のクラス
 class SessionManager {
     // クラスの唯一のインスタンスを保持する静的変数
     private static instance: SessionManager;
@@ -35,6 +41,7 @@ class SessionManager {
     private sessionTime: SessionTime | null = null;
     // 会話履歴を配列として保持
     private conversationHistory: any[] = [];
+    private conversationHistory: ConversationMessage[] = [];
 
     // プライベートコンストラクタ（外部からのインスタンス生成を防ぐ）
     private constructor() { }
@@ -61,6 +68,7 @@ class SessionManager {
      * 現在の会話履歴を取得
      */
     public getConversationHistory(): any[] {
+    public getConversationHistory(): ConversationMessage[] {
         return this.conversationHistory;
     }
 
@@ -115,11 +123,23 @@ interface FetchOptions {
     body: string;
 }
 
+
 /**
  * APIのPOSTエンドポイント処理関数
  * フロントエンドからのリクエストを処理し、Gemini APIと通信する
  * @param request Next.jsのリクエストオブジェクト
  */
+
+interface GeminiResponse {
+    candidates: Array<{
+        content: {
+            parts: Array<{
+                text: string;
+            }>;
+        };
+    }>;
+}
+
 export async function POST(request: NextRequest) {
     try {
         // セッションマネージャーのインスタンスを取得
