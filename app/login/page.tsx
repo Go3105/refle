@@ -4,8 +4,9 @@
 'use client'
 
 import { signIn } from 'next-auth/react';
-import Image from 'next/image';
 import { DynaPuff } from 'next/font/google';
+import { FcGoogle } from "react-icons/fc";
+import { IoPersonCircleOutline } from "react-icons/io5";
 
 const dynaPuff = DynaPuff({
     subsets: ['latin'],
@@ -26,14 +27,20 @@ export default function LoginPage() {
                 </div>
                 <button
                     onClick={handleLogin}
-                    className="w-full flex items-center justify-center px-5 py-2 border border-transparent font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                    className="w-full relative flex items-center justify-center px-5 py-2 border border-gray-500 font-medium rounded-md text-black bg-white hover:bg-gray-200"
                 >
+                    <span className="absolute left-4">
+                        <FcGoogle className="w-5 h-5" />
+                    </span>
                     Googleログイン
                 </button>
                 <button
                     onClick={handleLogin}
-                    className="w-full flex items-center justify-center px-4 py-2 border border-transparent font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                    className="w-full relative flex items-center justify-center px-5 py-2 border border-transparent font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
                 >
+                    <span className="absolute left-4">
+                        <IoPersonCircleOutline className="w-6 h-6" />
+                    </span>
                     新規登録
                 </button>
             </div>
