@@ -1,5 +1,6 @@
-import { useRef } from 'react';
-import { MicrophoneIcon, StopIcon } from '@heroicons/react/24/solid';
+import { useRef, useState, useEffect } from 'react';
+import { MicrophoneIcon, StopIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { useConversation } from '../context/ConversationContext';
 
 interface ChatControlsProps {
   isListening: boolean;
@@ -20,6 +21,35 @@ export default function ChatControls({
 }: ChatControlsProps) {
   // 処理中はボタンを無効化
   const isDisabled = isProcessing;
+  
+  // 会話コンテキストから開始時間を取得
+  const { conversationStartTime } = useConversation();
+  
+  // 経過時間の状態管理
+  const [elapsedTime, setElapsedTime] = useState('00:00');
+  
+  // 会話全体の経過時間を計算・更新する
+  useEffect(() => {
+    if (!conversationStartTime) return;
+    
+    const updateTime = () => {
+      const now = new Date();
+      const elapsedSeconds = Math.floor((now.getTime() - conversationStartTime.getTime()) / 1000);
+      
+      const minutes = Math.floor(elapsedSeconds / 60);
+      const seconds = elapsedSeconds % 60;
+      
+      setElapsedTime(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+    };
+    
+    // 初回実行
+    updateTime();
+    
+    // 1秒ごとに更新
+    const interval = setInterval(updateTime, 1000);
+    
+    return () => clearInterval(interval);
+  }, [conversationStartTime]);
   
   return (
     <div className="p-4 border-t" style={{ backgroundColor: '#F2FDF5' }}>
@@ -50,22 +80,22 @@ export default function ChatControls({
           )}
         </button>
         
-        {/* セッション終了ボタン */}
-        <button
-          onClick={onEndSession}
-          className="px-6 py-2.5 bg-green-500 text-white rounded-full hover:bg-green-600 transition-all"
-        >
-          会話を終了してサマリを作成
-        </button>
-        
-        {/* 状態メッセージ */}
-        <div className="mt-2 text-xs text-gray-500 text-center">
-          {isDisabled ? 
-            "AIが応答を考えています..." :
-            isListening ?
-              "マイクがオンです。お話しください" :
-              "マイクボタンを押して会話を始めてください"
-          }
+        {/* セッション終了ボタンと経過時間 */}
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={onEndSession}
+            className="px-6 py-2.5 bg-green-500 text-white rounded-full hover:bg-green-600 transition-all"
+          >
+            会話を終了してサマリを作成
+          </button>
+          
+          {/* 経過時間表示 */}
+          {conversationStartTime && (
+            <div className="py-2 px-4 bg-green-100 rounded-full border border-green-300 shadow-sm flex items-center">
+              <ClockIcon className="h-5 w-5 text-green-600 mr-1.5" />
+              <span className="text-base font-medium text-green-800">{elapsedTime}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

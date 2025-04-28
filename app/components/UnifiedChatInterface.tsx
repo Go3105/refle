@@ -147,12 +147,6 @@ export default function UnifiedChatInterface() {
       {/* オーディオプレイヤー（非表示） */}
       <audio ref={audioElementRef} className="hidden" />
 
-      {/* タイマー表示 - 右下隅に小さく表示 */}
-      {effectiveStartTime && (
-        <div className="absolute bottom-20 right-4 bg-gray-100 px-2 py-1 rounded text-xs text-gray-500 opacity-70">
-          {elapsedTime}
-        </div>
-      )}
     </div>
   );
 } 
