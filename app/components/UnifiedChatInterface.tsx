@@ -61,11 +61,9 @@ export default function UnifiedChatInterface() {
     onMessageReady: sendMessage,
   });
 
-  // 新しい会話フェーズ管理フックを使用
+  // 新しい会話フェーズ管理フックを使用 - UIには表示しないがバックグラウンドで処理
   const {
     currentPhase: phaseConfig,
-    currentPhaseName,
-    formattedRemainingTime,
     isRequiringSummary,
     phaseBehavior,
   } = useConversationPhase({
@@ -73,30 +71,12 @@ export default function UnifiedChatInterface() {
     onPhaseChange: (newPhase, oldPhase) => {
       console.log(`フェーズが変更されました: ${oldPhase?.name || 'なし'} → ${newPhase.name}`);
       
-      // フェーズ切り替え時の特別な挙動をここに実装
-      if (newPhase.behavior?.showVisualHint) {
-        // 例: フェーズ切り替え時のビジュアル通知
-        showPhaseChangeNotification(newPhase.name);
-      }
-      
       // サマリーが必要なフェーズに入ったら自動的にサマリー作成を開始
       if (newPhase.behavior?.requireSummary && !showingSummary) {
         handleEndSession();
       }
     }
   });
-
-  // フェーズ変更通知を表示する関数
-  const [phaseNotification, setPhaseNotification] = useState<string | null>(null);
-  
-  const showPhaseChangeNotification = (phaseName: string) => {
-    setPhaseNotification(`フェーズが切り替わりました: ${phaseName}`);
-    
-    // 3秒後に通知を消す
-    setTimeout(() => {
-      setPhaseNotification(null);
-    }, 3000);
-  };
   
   // オーディオ要素の参照を設定
   useEffect(() => {
@@ -132,26 +112,8 @@ export default function UnifiedChatInterface() {
     createSummary();
   };
 
-  // UI部分の更新 - フェーズ情報と残り時間の表示を追加
   return (
     <div className="flex flex-col h-full">
-      {/* フェーズ通知 */}
-      {phaseNotification && (
-        <div className="bg-blue-500 text-white p-2 text-center animate-fade-in-out">
-          {phaseNotification}
-        </div>
-      )}
-      
-      {/* フェーズと残り時間の表示 */}
-      <div className="flex justify-between items-center bg-gray-100 p-2 border-b">
-        <div className="text-sm font-medium">
-          現在のフェーズ: <span className="text-blue-600">{currentPhaseName}</span>
-        </div>
-        <div className="text-sm">
-          残り時間: <span className="font-mono">{formattedRemainingTime}</span>
-        </div>
-      </div>
-      
       {/* メッセージリスト */}
       <div className="flex-grow overflow-y-auto">
         {showingSummary ? (
@@ -184,6 +146,13 @@ export default function UnifiedChatInterface() {
       
       {/* オーディオプレイヤー（非表示） */}
       <audio ref={audioElementRef} className="hidden" />
+
+      {/* タイマー表示 - 右下隅に小さく表示 */}
+      {effectiveStartTime && (
+        <div className="absolute bottom-20 right-4 bg-gray-100 px-2 py-1 rounded text-xs text-gray-500 opacity-70">
+          {elapsedTime}
+        </div>
+      )}
     </div>
   );
 } 
