@@ -177,7 +177,10 @@ export default function useChat() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ createSummary: true }),
+        body: JSON.stringify({ 
+          createSummary: true,
+          messages: messages
+        }),
       });
       
       const data = await res.json();

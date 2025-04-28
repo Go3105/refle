@@ -1,0 +1,99 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #f9fafb;
+}
+
+.summaryForm {
+    padding: 1.5rem;
+    background-color: white;
+    border-top: 1px solid #e5e7eb;
+}
+
+.summaryForm h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #374151;
+}
+
+.summaryTextarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.summaryTextarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.summaryActions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.saveButton {
+    padding: 0.5rem 1.5rem;
+    background-color: #3b82f6;
+    color: white;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.saveButton:hover {
+    background-color: #2563eb;
+}
+
+.saveButton:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.endForm {
+    padding: 1.5rem;
+    background-color: white;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+}
+
+.endMessage {
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    color: #374151;
+}
+
+.endActions {
+    display: flex;
+    justify-content: center;
+}
+
+.endButton {
+    padding: 0.75rem 2rem;
+    background-color: #3b82f6;
+    color: white;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    border: none;
+    cursor: pointer;
+}
+
+.endButton:hover {
+    background-color: #2563eb;
+}
+
+.endButton:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+} 

@@ -81,26 +81,75 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { message, reset, elapsedSeconds, createSummary } = body;
+        const { message, reset, elapsedSeconds, createSummary, messages } = body;
 
         // サマリ作成リクエストの場合
         if (createSummary) {
-            const conversationHistory = sessionManager.getConversationHistory();
-            const summaryPrompt = SUMMARY_PROMPT.content.replace('{conversationHistory}', 
-                JSON.stringify(conversationHistory, null, 2));
-
-            const model = 'gemini-2.0-flash-lite';
-            const response = await ai.models.generateContentStream({
-                model,
-                contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }]
+            // フロントエンドからmessagesが提供された場合はそれを使用
+            let conversationData;
+            
+            console.log('サマリ作成リクエスト受信:', { 
+                hasMessages: !!messages, 
+                messagesLength: messages ? messages.length : 0 
             });
-
-            let fullResponse = '';
-            for await (const chunk of response) {
-                fullResponse += chunk.text;
+            
+            if (messages && Array.isArray(messages) && messages.length > 0) {
+                // フロントエンドから提供されたメッセージをGemini用に変換
+                // Messageインターフェースの形式から、Geminiが期待する形式に変換
+                console.log('フロントエンドから提供されたメッセージを処理します');
+                
+                try {
+                    const formattedMessages = messages.map(msg => ({
+                        role: msg.role === 'assistant' ? 'assistant' : 'user',
+                        content: msg.content
+                    }));
+                    conversationData = JSON.stringify(formattedMessages, null, 2);
+                    console.log(`${messages.length}件のメッセージを変換しました`);
+                } catch (error) {
+                    console.error('メッセージ変換エラー:', error);
+                    conversationData = JSON.stringify(messages, null, 2);
+                }
+            } else {
+                // セッションマネージャーから会話履歴を取得
+                console.log('セッションマネージャーから会話履歴を取得します');
+                const conversationHistory = sessionManager.getConversationHistory();
+                conversationData = JSON.stringify(conversationHistory, null, 2);
+                console.log(`セッションから${conversationHistory.length}件のメッセージを取得しました`);
+            }
+            
+            // 会話データが空でないことを確認
+            if (!conversationData || conversationData === '[]' || conversationData === '{}') {
+                console.warn('会話データが空です。デフォルトのメッセージを返します。');
+                return NextResponse.json({ 
+                    summary: '申し訳ありませんが、会話履歴が提供されていません。そのため、サマリを作成することができません。'
+                });
             }
 
-            return NextResponse.json({ summary: fullResponse });
+            console.log('サマリ作成プロンプトを準備しています');
+            const summaryPrompt = SUMMARY_PROMPT.content.replace('{conversationHistory}', conversationData);
+
+            try {
+                console.log('Gemini APIにリクエストを送信します');
+                const model = 'gemini-2.0-flash-lite';
+                const response = await ai.models.generateContentStream({
+                    model,
+                    contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }]
+                });
+
+                let fullResponse = '';
+                for await (const chunk of response) {
+                    fullResponse += chunk.text;
+                }
+
+                console.log('サマリ生成完了:', fullResponse.substring(0, 100) + '...');
+                return NextResponse.json({ summary: fullResponse });
+            } catch (error) {
+                console.error('Gemini APIエラー:', error);
+                return NextResponse.json({ 
+                    summary: 'サマリの生成中にエラーが発生しました。申し訳ありませんが、再度お試しください。',
+                    error: error.message
+                }, { status: 500 });
+            }
         }
 
         if (reset) {
