@@ -24,6 +24,7 @@
         "install": "^0.13.0",
         "lint": "^0.8.19",
         "lottie-react": "^2.4.1",
+        "lucide-react": "^0.503.0",
         "mime": "^4.0.7",
         "next": "latest",
         "next-auth": "^5.0.0-beta.25",

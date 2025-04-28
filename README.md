@@ -154,8 +154,6 @@ npm run dev
 ├── app/                  # メインアプリケーションコード (Next.js App Router)
 │   ├── components/       # UIコンポーネント
 │   │   ├── ui/           # 基本的なUIコンポーネント
-│   │   │   ├── Microphoneicon.tsx
-│   │   │   └── button.tsx
 │   │   ├── conversation/ # 会話関連コンポーネント
 │   │   ├── UnifiedChatInterface.tsx
 │   │   ├── RealtimeConversation.tsx
@@ -164,7 +162,11 @@ npm run dev
 │   │   ├── MessageList.tsx
 │   │   ├── AudioPlayer.tsx
 │   │   ├── SignOutButton.tsx
-│   │   └── AccountMenu.tsx
+│   │   ├── AccountMenu.tsx
+│   │   ├── Microphoneicon.tsx
+│   │   ├── TopPage.tsx
+│   │   └── BackgroundAnimation.tsx
+│   ├── context/          # Reactコンテキスト
 │   ├── hooks/            # カスタムフック
 │   │   ├── useBetterSpeechRecognition.ts
 │   │   └── useSocketConnection.ts
@@ -173,8 +175,7 @@ npm run dev
 │   │   ├── gemini/
 │   │   ├── text-to-speech/
 │   │   ├── env-check/
-│   │   ├── auth/
-│   │   └── conversation/
+│   │   └── auth/
 │   ├── profile/          # プロフィールページ
 │   ├── settings/         # 設定ページ
 │   ├── lib/              # アプリケーション固有のライブラリ
@@ -185,6 +186,5 @@ npm run dev
 │   └── layout.tsx        # レイアウトコンポーネント
 ├── lib/                  # 共通ライブラリ
 ├── public/               # 静的ファイル
-├── pages/                # ページコンポーネント (Pages Router)
-└── [設定ファイル類]        # 各種設定ファイル
+└── pages/                # ページコンポーネント (Pages Router)
 ```
