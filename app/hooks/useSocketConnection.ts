@@ -15,6 +15,11 @@ interface SocketConnectionCallbacks {
     onDisconnect?: () => void;
 }
 
+interface Message {
+    type: string;
+    data: unknown;
+}
+
 export function useSocketConnection(callbacks: SocketConnectionCallbacks = {}) {
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<Socket | null>(null);

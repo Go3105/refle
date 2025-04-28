@@ -2,12 +2,12 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { 
-    createInitialConversationHistory, 
-    createSystemPrompt, 
-    setSessionStartTime, 
+import {
+    createInitialConversationHistory,
+    createSystemPrompt,
+    setSessionStartTime,
     SessionTime,
-    SUMMARY_PROMPT 
+    SUMMARY_PROMPT
 } from '@/app/lib/prompts';
 
 // APIキーのチェック
@@ -25,7 +25,7 @@ class SessionManager {
     private sessionTime: SessionTime | null = null;
     private conversationHistory: any[] = [];
 
-    private constructor() {}
+    private constructor() { }
 
     public static getInstance(): SessionManager {
         if (!SessionManager.instance) {
@@ -66,6 +66,12 @@ class SessionManager {
     }
 }
 
+interface FetchOptions {
+    method: string;
+    headers: Record<string, string>;
+    body: string;
+}
+
 export async function POST(request: NextRequest) {
     try {
         const sessionManager = SessionManager.getInstance();
@@ -87,17 +93,17 @@ export async function POST(request: NextRequest) {
         if (createSummary) {
             // フロントエンドからmessagesが提供された場合はそれを使用
             let conversationData;
-            
-            console.log('サマリ作成リクエスト受信:', { 
-                hasMessages: !!messages, 
-                messagesLength: messages ? messages.length : 0 
+
+            console.log('サマリ作成リクエスト受信:', {
+                hasMessages: !!messages,
+                messagesLength: messages ? messages.length : 0
             });
-            
+
             if (messages && Array.isArray(messages) && messages.length > 0) {
                 // フロントエンドから提供されたメッセージをGemini用に変換
                 // Messageインターフェースの形式から、Geminiが期待する形式に変換
                 console.log('フロントエンドから提供されたメッセージを処理します');
-                
+
                 try {
                     const formattedMessages = messages.map(msg => ({
                         role: msg.role === 'assistant' ? 'assistant' : 'user',
@@ -116,11 +122,11 @@ export async function POST(request: NextRequest) {
                 conversationData = JSON.stringify(conversationHistory, null, 2);
                 console.log(`セッションから${conversationHistory.length}件のメッセージを取得しました`);
             }
-            
+
             // 会話データが空でないことを確認
             if (!conversationData || conversationData === '[]' || conversationData === '{}') {
                 console.warn('会話データが空です。デフォルトのメッセージを返します。');
-                return NextResponse.json({ 
+                return NextResponse.json({
                     summary: '申し訳ありませんが、会話履歴が提供されていません。そのため、サマリを作成することができません。'
                 });
             }
@@ -145,7 +151,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ summary: fullResponse });
             } catch (error) {
                 console.error('Gemini APIエラー:', error);
-                return NextResponse.json({ 
+                return NextResponse.json({
                     summary: 'サマリの生成中にエラーが発生しました。申し訳ありませんが、再度お試しください。',
                     error: error.message
                 }, { status: 500 });
@@ -155,9 +161,9 @@ export async function POST(request: NextRequest) {
         if (reset) {
             sessionManager.resetSession();
             console.log('会話履歴をリセットしました');
-            return NextResponse.json({ 
-                success: true, 
-                message: '会話履歴をリセットしました' 
+            return NextResponse.json({
+                success: true,
+                message: '会話履歴をリセットしました'
             });
         }
 
@@ -225,7 +231,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Error:', error);
         return NextResponse.json(
-            { 
+            {
                 success: false,
                 error: error.message || 'Internal server error',
                 details: process.env.NODE_ENV === 'development' ? error.stack : undefined

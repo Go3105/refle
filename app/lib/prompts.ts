@@ -132,11 +132,11 @@ context:
  */
 export class ConversationPhaseManager {
     private phases: PhaseConfig[];
-    
+
     constructor(phases: PhaseConfig[] = CONVERSATION_PHASES) {
         this.phases = phases;
     }
-    
+
     /**
      * 現在のフェーズを取得
      * @param elapsedSeconds - 経過秒数
@@ -151,7 +151,7 @@ export class ConversationPhaseManager {
         // デフォルトは最後のフェーズを返す
         return this.phases[this.phases.length - 1];
     }
-    
+
     /**
      * フェーズのプロンプトを取得
      * @param elapsedSeconds - 経過秒数
@@ -160,7 +160,7 @@ export class ConversationPhaseManager {
     getPromptForPhase(elapsedSeconds: number): string {
         return this.getCurrentPhase(elapsedSeconds).prompt;
     }
-    
+
     /**
      * フェーズの残り時間を計算
      * @param elapsedSeconds - 経過秒数
@@ -170,7 +170,7 @@ export class ConversationPhaseManager {
         const currentPhase = this.getCurrentPhase(elapsedSeconds);
         return currentPhase.duration.end - elapsedSeconds;
     }
-    
+
     /**
      * フェーズの挙動設定を取得
      * @param elapsedSeconds - 経過秒数
@@ -179,7 +179,7 @@ export class ConversationPhaseManager {
     getBehaviorForPhase(elapsedSeconds: number): any {
         return this.getCurrentPhase(elapsedSeconds).behavior || {};
     }
-    
+
     /**
      * 特定の挙動が必要かどうかを確認
      * @param elapsedSeconds - 経過秒数
@@ -190,7 +190,7 @@ export class ConversationPhaseManager {
         const behavior = this.getBehaviorForPhase(elapsedSeconds);
         return !!behavior[behaviorKey];
     }
-    
+
     /**
      * すべてのフェーズを取得
      * @returns フェーズの配列
@@ -198,7 +198,7 @@ export class ConversationPhaseManager {
     getAllPhases(): PhaseConfig[] {
         return this.phases;
     }
-    
+
     /**
      * 秒数を分と秒の形式に変換する関数
      * 
@@ -210,7 +210,7 @@ export class ConversationPhaseManager {
         const absSeconds = Math.abs(seconds);
         const minutes = Math.floor(absSeconds / 60);
         const remainingSeconds = absSeconds % 60;
-        
+
         // 分がある場合は「分秒」、ない場合は「秒」だけ表示
         if (minutes > 0) {
             return `${minutes}分${remainingSeconds}秒`;
@@ -218,7 +218,7 @@ export class ConversationPhaseManager {
             return `${remainingSeconds}秒`;
         }
     }
-    
+
     /**
      * 残り時間を文字列で取得
      * 
@@ -232,7 +232,7 @@ export class ConversationPhaseManager {
         }
         return this.formatElapsedTime(remainingSeconds);
     }
-    
+
     /**
      * システムプロンプトを生成する
      * 
@@ -251,7 +251,7 @@ export class ConversationPhaseManager {
                 .replace('{remainingTime}', remainingTime)
         };
     }
-    
+
     /**
      * 初期会話履歴を生成する
      * 
@@ -299,7 +299,7 @@ export function setSessionStartTime(): SessionTime {
         second: '2-digit'
     });
     const startTimestamp = now.getTime();
-    
+
     return {
         startTime,
         startTimestamp
@@ -346,7 +346,7 @@ export function createInitialConversationHistory(sessionTime?: SessionTime): Pro
     // 引数が省略された場合や不正な値の場合にデフォルト値を使用
     const defaultSessionTime = setSessionStartTime();
     const currentTime = sessionTime?.startTime || defaultSessionTime.startTime;
-    
+
     return phaseManager.createInitialConversationHistory(currentTime);
 }
 
@@ -364,4 +364,12 @@ export const SUMMARY_PROMPT = {
 };
 
 // デフォルトのウェルカムメッセージ
-export const DEFAULT_WELCOME_MESSAGE = 'こんにちは、今日は何をしましたか？'; 
+export const DEFAULT_WELCOME_MESSAGE = 'こんにちは、今日は何をしましたか？';
+
+interface PromptData {
+    // プロンプトのデータ構造に合わせて型を定義
+}
+
+const formatPrompt = (data: PromptData) => {
+    // ... existing code ...
+} 
