@@ -1,5 +1,4 @@
 import { auth } from '@/auth';
-import { users } from '@/app/lib/userdata';
 import { Client } from '@notionhq/client';
 import { NextResponse } from 'next/server';
 
@@ -13,24 +12,26 @@ export async function POST(req: Request) {
         if (!session || !session.user?.email) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
-        const email = session.user.email;
-        // Find user credentials
-        const user = users.find(u => u.email === email);
-        if (!user) {
-            return NextResponse.json({ error: 'User Notion credentials not found' }, { status: 403 });
+
+        const notion_api_token = process.env.NOTION_API_TOKEN;
+        const notion_database_id = process.env.NOTION_DATABASE_ID;
+
+        if (!notion_api_token || !notion_database_id) {
+            return NextResponse.json({ error: 'Notion credentials not found' }, { status: 403 });
         }
+
         const today = new Date();
         const month = today.getMonth() + 1;
         const day = today.getDate();
         const pageTitle = `${month}月${day}日`;
 
         const notion = new Client({
-            auth: user.notion_api_token
+            auth: notion_api_token
         });
 
         const response = await notion.pages.create({
             parent: {
-                database_id: user.notion_database_id
+                database_id: notion_database_id
             },
             properties: {
                 タイトル: {
