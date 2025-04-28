@@ -420,21 +420,81 @@ export default function RealtimeConversation() {
         }
     };
 
-    /**
-     * 会話時間の監視
-     */
+    // 会話時間の監視
     useEffect(() => {
-        if (!conversationStartTime) return;
-        
-        // 1秒ごとに会話時間を確認（ログ出力のみ）
-        const timeInterval = setInterval(() => {
-            if (shouldEndConversation(messages, conversationStartTime, Date.now())) {
-                console.log('会話が2分を経過しました。次のユーザー入力で会話を終了します');
+        if (!conversationStartTime) {
+            console.log('会話開始時間が設定されていません');
+            return;
+        }
+
+        console.log('会話開始時間:', new Date(conversationStartTime).toISOString());
+        console.log('現在時刻:', new Date().toISOString());
+        console.log('経過時間:', (Date.now() - conversationStartTime) / 1000, '秒');
+
+        let timeoutId: NodeJS.Timeout;
+        let isEnding = false;  // 終了処理中フラグ
+
+        const endConversation = () => {
+            if (isEnding || conversationEnded) {
+                console.log('既に終了処理中または終了済みのため、終了処理をスキップします');
+                return;
             }
-        }, 1000);
+            isEnding = true;
+
+            console.log('会話開始から60秒経過しました。会話を終了します');
+            console.log('終了時の経過時間:', (Date.now() - conversationStartTime) / 1000, '秒');
+            
+            // 会話終了フラグを設定
+            setConversationEnded(true);
+            setStatus('ended');
+            
+            // 終了メッセージを追加
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: '会話が終了しました。ありがとうございました。',
+                timestamp: Date.now()
+            }]);
+            
+            // 音声認識を停止
+            stopListening();
+            
+            // Socket接続を切断
+            if (socketRef?.current) {
+                console.log('Socket接続を切断します');
+                socketRef.current.emit('end-session');
+                disconnect();
+            }
+        };
+
+        const currentTime = Date.now();
+        const elapsedTime = currentTime - conversationStartTime;
         
-        return () => clearInterval(timeInterval);
-    }, [conversationStartTime, messages]);
+        console.log('タイマー設定時の経過時間:', elapsedTime / 1000, '秒');
+        
+        // 既に60秒経過しているかチェック
+        if (elapsedTime >= 60000) {
+            console.log('既に60秒経過しているため、即座に終了処理を実行します');
+            endConversation();
+            return;
+        }
+
+        // 残り時間を計算してタイマーを設定
+        const timeUntilEnd = 60000 - elapsedTime;
+        console.log('タイマーを設定します。残り時間:', timeUntilEnd / 1000, '秒');
+        
+        timeoutId = setTimeout(() => {
+            console.log('タイマーが発火しました');
+            endConversation();
+        }, timeUntilEnd);
+
+        // クリーンアップ関数
+        return () => {
+            if (timeoutId) {
+                console.log('タイマーをクリアします');
+                clearTimeout(timeoutId);
+            }
+        };
+    }, [conversationStartTime, conversationEnded, stopListening, socketRef, disconnect]);
 
     // 音声認識状態の変更を監視
     useEffect(() => {
@@ -462,12 +522,14 @@ export default function RealtimeConversation() {
         // 会話開始時間が設定されていなければ設定
         if (!conversationStartTime) {
             setConversationStartTime(Date.now());
-            return;
         }
 
-        // 2分以上経過している場合、会話を終了
-        if (shouldEndConversation(messages, conversationStartTime, Date.now())) {
-            console.log('2分経過後の最初のユーザー入力を受け取りました。会話を終了します');
+        // 「終了」と入力されたら会話を終了
+        if (text.trim() === '終了') {
+            console.log('ユーザーが終了を要求しました');
+            
+            // まず会話終了フラグを設定
+            setConversationEnded(true);
             
             // ユーザーのメッセージを追加
             const userMessage: Message = {
@@ -475,30 +537,30 @@ export default function RealtimeConversation() {
                 content: text,
                 timestamp: Date.now()
             };
-            const updatedMessages = [...messages, userMessage];
-            setMessages(updatedMessages);
+            setMessages(prev => [...prev, userMessage]);
             
-            // 処理中フラグを設定
-            setIsProcessing(true);
-            setStatus('processing');
+            // 音声認識を完全に停止
+            stopListening();
+            setIsProcessing(false);  // 処理中フラグを明示的にリセット
             
-            // AIのメッセージを追加
-            const aiMessage: Message = {
-                role: 'assistant',
-                content: '会話が終了しました。ありがとうございました。',
-                timestamp: Date.now()
-            };
-            setMessages(prev => [...prev, aiMessage]);
-            
-            // 処理中フラグをリセット
-            setIsProcessing(false);
-            setStatus('ended');
-            
-            // Socket.IO接続を切断
+            // Socket接続を切断
             if (socketRef?.current) {
                 socketRef.current.emit('end-session');
                 disconnect();
             }
+            
+            // 状態を更新
+            setStatus('ended');
+            
+            // 終了メッセージを追加
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: '会話が終了しました。ありがとうございました。',
+                timestamp: Date.now()
+            }]);
+
+            // 即座にホーム画面に戻る
+            window.location.href = '/';
             
             return;
         }
@@ -570,6 +632,13 @@ export default function RealtimeConversation() {
         // 会話終了フラグを立てる
         setConversationEnded(true);
         setStatus('ended');
+        
+        // 終了メッセージを追加
+        setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '会話が終了しました。ありがとうございました。',
+            timestamp: Date.now()
+        }]);
         
         // Socket接続を切断
         if (socketRef?.current) {
