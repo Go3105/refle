@@ -31,9 +31,6 @@ export interface Message {
     timestamp?: number;          // 送信タイムスタンプ
 }
 
-// Socket.IOサーバーのURL
-const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:3001';
-
 // 会話の状態を表す型定義
 type ConversationStatus =
     | 'idle'           // 待機中
@@ -42,6 +39,10 @@ type ConversationStatus =
     | 'summarizing'    // サマリ生成中
     | 'summary_ready'  // サマリ生成完了
     | 'ended';         // 会話終了
+
+interface SpeechRequest {
+    text: string;
+}
 
 export default function RealtimeConversation() {
     // ステート変数
@@ -58,7 +59,7 @@ export default function RealtimeConversation() {
     const isMountedRef = useRef(true);
     const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 処理タイムアウト用
     const audioElementRef = useRef<HTMLAudioElement>(null);     // 音声再生用Audio要素
-    const socketRefInternal = useRef<any>(null);                // Socket.IO参照用の内部Ref
+    const socketRefInternal = useRef<Socket | null>(null);      // Socket.IO参照用の内部Ref
     const recognitionTimerRef = useRef<NodeJS.Timeout | null>(null); // 音声認識再開タイマー
 
     // イベント結果を追跡（二重処理防止）
@@ -431,7 +432,6 @@ export default function RealtimeConversation() {
         console.log('現在時刻:', new Date().toISOString());
         console.log('経過時間:', (Date.now() - conversationStartTime) / 1000, '秒');
 
-        let timeoutId: NodeJS.Timeout;
         let isEnding = false;  // 終了処理中フラグ
 
         const endConversation = () => {
@@ -482,7 +482,7 @@ export default function RealtimeConversation() {
         const timeUntilEnd = 60000 - elapsedTime;
         console.log('タイマーを設定します。残り時間:', timeUntilEnd / 1000, '秒');
 
-        timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(() => {
             console.log('タイマーが発火しました');
             endConversation();
         }, timeUntilEnd);

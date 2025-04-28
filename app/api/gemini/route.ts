@@ -19,11 +19,16 @@ const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
 });
 
+interface ConversationMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
+
 // セッション管理用のクラス
 class SessionManager {
     private static instance: SessionManager;
     private sessionTime: SessionTime | null = null;
-    private conversationHistory: any[] = [];
+    private conversationHistory: ConversationMessage[] = [];
 
     private constructor() { }
 
@@ -38,7 +43,7 @@ class SessionManager {
         return this.sessionTime;
     }
 
-    public getConversationHistory(): any[] {
+    public getConversationHistory(): ConversationMessage[] {
         return this.conversationHistory;
     }
 
@@ -70,6 +75,16 @@ interface FetchOptions {
     method: string;
     headers: Record<string, string>;
     body: string;
+}
+
+interface GeminiResponse {
+    candidates: Array<{
+        content: {
+            parts: Array<{
+                text: string;
+            }>;
+        };
+    }>;
 }
 
 export async function POST(request: NextRequest) {
