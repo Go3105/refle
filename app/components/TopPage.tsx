@@ -1,13 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import AccountMenu from './AccountMenu';
-import RealtimeConversation from './RealtimeConversation';
 import { SignOutButton } from './SignOutButton';
-// import { Player } from "@lottiefiles/react-lottie-player";
 import Microphoneicon from './Microphoneicon';
-import BackgroundAnimation from './BackgroundAnimation';
 import { DynaPuff } from 'next/font/google';
 import UnifiedChatInterface from './UnifiedChatInterface';
 import { useConversation } from '../context/ConversationContext';
@@ -21,102 +18,41 @@ export default function TopPage({ username }: { username: string }) {
     const userName = username;
     const [showConversation, setShowConversation] = useState(false);
     const [micHover, setMicHover] = useState(false);
-    const [showGreeting, setShowGreeting] = useState(false);
-    const [bgAnimStage, setBgAnimStage] = useState<'hidden' | 'enter' | 'exit'>('hidden');
     const { startConversation, resetConversation } = useConversation();
-
-    const greeting = `${userName}さん今日もお疲れ様でした。簡単に1日の出来事を振り返ってみましょう`;
 
     const handleStartReflection = () => {
         startConversation();
-        setBgAnimStage('enter');
-        setShowGreeting(true);
-        setTimeout(() => {
-            setBgAnimStage('exit');
-            setTimeout(() => {
-                setShowGreeting(false);
-                setShowConversation(true);
-                setBgAnimStage('hidden');
-            }, 700); // アニメーション時間と合わせる
-        }, 1000 + greeting.length * 70);
+        setShowConversation(true);
     };
 
     return (
         <main className="flex flex-col h-screen">
-            {(!showGreeting && !showConversation) && (
+            {!showConversation && (
                 <div className="w-full h-20 bg-green-400 absolute top-0 left-0 z-0" />
             )}
             {!showConversation ? (
                 <div className="flex flex-col justify-center items-center h-full">
-                    {showGreeting ? (
-                        <div
-                            className={`absolute w-full h-full z-0 flex items-center justify-center transition-transform duration-700 ${bgAnimStage === 'enter' ? 'translate-y-0' : ''} ${bgAnimStage === 'exit' || bgAnimStage === 'hidden' ? '-translate-y-full' : ''}`}
-                            style={{
-                                transform: bgAnimStage === 'enter'
-                                    ? 'translateY(0%)'
-                                    : 'translateY(-100%)',
-                                transition: 'transform 0.7s cubic-bezier(0.4,0,0.2,1)',
-                            }}
-                        >
-                            <BackgroundAnimation />
-                            <div className="flex flex-col items-center justify-center w-full h-full absolute top-0 left-0 z-10">
-                                <div
-                                    className="text-4xl mb-8 whitespace-pre-line zen-maru-gothic-black"
-                                    style={{
-                                        display: 'flex',
-                                        flexWrap: 'wrap',
-                                    }}
-                                >
-                                    {greeting.split('').map((char, i) => (
-                                        <span
-                                            key={i}
-                                            style={{
-                                                opacity: 0,
-                                                animation: `fadein-char 0.5s forwards`,
-                                                animationDelay: `${i * 0.07}s`,
-                                                display: 'inline-block',
-                                                color: '#ffffff',
-                                                whiteSpace: 'pre',
-                                            }}
-                                        >
-                                            {char}
-                                        </span>
-                                    ))}
-                                </div>
-                                <style jsx>{`
-                                    @keyframes fadein-char {
-                                        to {
-                                            opacity: 1;
-                                        }
-                                    }
-                                `}</style>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <div className={`absolute top-5 left-20 text-white text-4xl ${dynaPuff.className}`}>
-                                Refle
-                            </div>
-                            <div className="absolute top-4 right-20 flex items-center z-20">
-                                <SignOutButton />
-                            </div>
-                            <div className="absolute top-4 right-6 flex items-center z-20">
-                                <AccountMenu />
-                            </div>
-                            <button
-                                onClick={handleStartReflection}
-                                onMouseEnter={() => setMicHover(true)}
-                                onMouseLeave={() => setMicHover(false)}
-                                style={{
-                                    filter: micHover
-                                        ? 'hue-rotate(30deg)'
-                                        : 'none',
-                                }}
-                            >
-                                <Microphoneicon />
-                            </button>
-                        </>
-                    )}
+                    <div className={`absolute top-5 left-20 text-white text-4xl ${dynaPuff.className}`}>
+                        Refle
+                    </div>
+                    <div className="absolute top-4 right-20 flex items-center z-20">
+                        <SignOutButton />
+                    </div>
+                    <div className="absolute top-4 right-6 flex items-center z-20">
+                        <AccountMenu />
+                    </div>
+                    <button
+                        onClick={handleStartReflection}
+                        onMouseEnter={() => setMicHover(true)}
+                        onMouseLeave={() => setMicHover(false)}
+                        style={{
+                            filter: micHover
+                                ? 'hue-rotate(30deg)'
+                                : 'none',
+                        }}
+                    >
+                        <Microphoneicon />
+                    </button>
                 </div>
             ) : (
                 <UnifiedChatInterface />
