@@ -3,6 +3,7 @@
  * 会話インターフェースのヘッダー部分
  */
 import React from 'react';
+import { UserCircle } from 'lucide-react';
 
 interface ConversationHeaderProps {
     isConnected?: boolean;
@@ -13,20 +14,21 @@ interface ConversationHeaderProps {
 
 export default function ConversationHeader({ isConnected = true, onEndSession, isProcessing, isDisabled }: ConversationHeaderProps) {
     return (
-        <header className="flex justify-between items-center p-4 bg-pink-50 shadow-sm">
-            <h1 className="text-xl font-bold">リアルタイム音声会話</h1>
-            <div className="flex items-center gap-3">
-                {/* 接続状態インジケーター */}
-                <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span>{isConnected ? 'オンライン' : '接続中...'}</span>
-                {/* 終了ボタン */}
+        <header className="bg-gradient-to-r from-green-400 to-green-500 p-4 flex justify-between items-center shadow-md">
+            <div className="text-white font-bold text-2xl">Refle</div>
+            <div className="flex items-center gap-2">
+                <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-green-100' : 'bg-red-500'} mr-1`} />
+                <span className="text-white text-sm mr-2">{isConnected ? 'オンライン' : '接続中...'}</span>
                 <button
                     onClick={onEndSession}
-                    className="px-4 py-2 bg-pink-100 rounded-lg hover:bg-pink-200"
+                    className="bg-white text-green-500 px-4 py-2 rounded-md font-medium transition-all hover:bg-gray-100"
                     disabled={isDisabled || isProcessing}
                 >
-                    終了
+                    サインアウト
                 </button>
+                <div className="bg-white rounded-full p-1 cursor-pointer">
+                    <UserCircle className="h-7 w-7 text-gray-600" />
+                </div>
             </div>
         </header>
     );

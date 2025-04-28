@@ -727,6 +727,7 @@ export default function RealtimeConversation() {
                 currentTranscript={currentTranscript}
                 toggleListening={handleToggleMic}
                 onSendMessage={handleSendMessage}
+                onEndSession={handleEndSession}
                 isDisabled={conversationEnded}
             />
         </div>
