@@ -189,6 +189,10 @@ export async function POST(request: NextRequest) {
             console.log('サマリ作成プロンプトを準備しています');
             // テンプレート内のプレースホルダーを実際の会話データで置換
             const summaryPrompt = SUMMARY_PROMPT.content.replace('{conversationHistory}', conversationData);
+            
+            // プロンプト内容をログに出力（全文）
+            console.log('サマリ作成プロンプト内容:');
+            console.log(summaryPrompt);
 
             try {
                 console.log('Gemini APIにリクエストを送信します');
@@ -270,6 +274,10 @@ export async function POST(request: NextRequest) {
             role: msg.role === 'assistant' ? 'model' : 'user', // 'assistant'を'model'に変換
             parts: [{ text: msg.content }] // contentをparts.textに変換
         }));
+
+        // システムプロンプトの内容をログに出力（全文）
+        console.log('システムプロンプト内容:');
+        console.log(contents[0]?.parts[0]?.text);
 
         // Gemini APIを呼び出してレスポンスをストリーミング形式で取得
         const response = await ai.models.generateContentStream({
