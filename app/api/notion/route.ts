@@ -5,9 +5,10 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
-export async function POST() {
+export async function POST(req: Request) {
     try {
         // Get current session
+        const { summary } = await req.json();
         const session = await auth();
         if (!session || !session.user?.email) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -45,7 +46,7 @@ export async function POST() {
                     rich_text: [
                         {
                             text: {
-                                content: '今日の振り返り結果を載せる'
+                                content: summary
                             }
                         }
                     ]

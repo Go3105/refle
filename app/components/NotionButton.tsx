@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 
-export default function AddPage() {
+interface NotionButtonProps {
+    summary: string;
+}
+
+export default function NotionButton({ summary }: NotionButtonProps) {
     const [isLoading, setIsLoading] = useState(false);
 
     const handleAddToNotion = async () => {
@@ -13,6 +17,7 @@ export default function AddPage() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ summary }),
             });
 
             if (!response.ok) {
