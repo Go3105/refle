@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { users } from '@/lib/userdata';
+import { users } from '@/app/lib/userdata';
 import { Client } from '@notionhq/client';
 import { NextResponse } from 'next/server';
 
