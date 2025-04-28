@@ -1,15 +1,14 @@
-import MicrophoneAnimation from '../../public/MicrophoneAnimationGreen.json';
+import BackgroundWave from '../../public/BackgroundAnimation.json';
 import dynamic from 'next/dynamic';
 
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 
-const Microphoneicon = () => {
+const BackgroundAnimation = () => {
     return (
         <Lottie
-            animationData={MicrophoneAnimation}
+            animationData={BackgroundWave}
             loop={true}
             autoplay={true}
-            className="mb-8"
             style={{
                 width: '100%',
                 height: '100%',
@@ -18,4 +17,4 @@ const Microphoneicon = () => {
     );
 }
 
-export default Microphoneicon;
+export default BackgroundAnimation;

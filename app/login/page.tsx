@@ -5,6 +5,13 @@
 
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
+import { DynaPuff } from 'next/font/google';
+
+const dynaPuff = DynaPuff({
+    subsets: ['latin'],
+    display: 'swap',
+});
+
 
 export default function LoginPage() {
     const handleLogin = () => {
@@ -12,27 +19,22 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-            <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
-                <div className="flex flex-col items-center">
-                    <Image
-                        src="/ai_character.png"
-                        width={120}
-                        height={120}
-                        alt="AI character"
-                        className="mb-4"
-                    />
-                    <h2 className="text-2xl font-bold text-gray-900">ログイン</h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        リフレクションを始めるにはログインしてください
-                    </p>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+            <div className="w-full max-w-md p-20 space-y-8 bg-white rounded-lg shadow-md">
+                <div className={`text-green-500 text-4xl ${dynaPuff.className} text-center mb-24`}>
+                    Refle
                 </div>
-
                 <button
                     onClick={handleLogin}
-                    className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-md text-white bg-pink-100 hover:bg-pink-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+                    className="w-full flex items-center justify-center px-5 py-2 border border-transparent font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
                 >
-                    Googleでログイン
+                    Googleログイン
+                </button>
+                <button
+                    onClick={handleLogin}
+                    className="w-full flex items-center justify-center px-4 py-2 border border-transparent font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                >
+                    新規登録
                 </button>
             </div>
         </div>

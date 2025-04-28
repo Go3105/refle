@@ -16,3 +16,9 @@ input[type='number']::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
+
+.zen-maru-gothic-black {
+    font-family: "Zen Maru Gothic", serif;
+    font-weight: 900;
+    font-style: normal;
+}
