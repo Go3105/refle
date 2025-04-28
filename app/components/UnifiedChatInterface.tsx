@@ -5,6 +5,7 @@ import Summary from './Summary';
 import useChat from '../lib/hooks/useChat';
 import useSpeech from '../lib/hooks/useSpeech';
 import { useConversation } from '../context/ConversationContext';
+import useConversationPhase from '../hooks/useConversationPhase';
 
 /**
  * 経過時間をフォーマットする関数
@@ -42,7 +43,7 @@ export default function UnifiedChatInterface() {
     setEditableSummary,
     saveSummary,
     startTime: chatStartTime,
-    currentPhase,
+    currentPhase, // この値は引き続き使用されるが、新しいフックからのデータも併用
     showingSummary,
     messagesEndRef,
   } = useChat();
@@ -58,6 +59,23 @@ export default function UnifiedChatInterface() {
     audioRef,
   } = useSpeech({ 
     onMessageReady: sendMessage,
+  });
+
+  // 新しい会話フェーズ管理フックを使用 - UIには表示しないがバックグラウンドで処理
+  const {
+    currentPhase: phaseConfig,
+    isRequiringSummary,
+    phaseBehavior,
+  } = useConversationPhase({
+    startTime: effectiveStartTime,
+    onPhaseChange: (newPhase, oldPhase) => {
+      console.log(`フェーズが変更されました: ${oldPhase?.name || 'なし'} → ${newPhase.name}`);
+      
+      // サマリーが必要なフェーズに入ったら自動的にサマリー作成を開始
+      if (newPhase.behavior?.requireSummary && !showingSummary) {
+        handleEndSession();
+      }
+    }
   });
   
   // オーディオ要素の参照を設定
@@ -93,46 +111,47 @@ export default function UnifiedChatInterface() {
   const handleEndSession = () => {
     createSummary();
   };
-  
+
   return (
-    <div className="flex flex-col h-full relative">
-      {/* オーディオ要素（非表示） */}
-      <audio ref={audioElementRef} className="hidden" />
-      
-      {/* サマリが表示されている場合 */}
-      {showingSummary ? (
-        <Summary
-          summary={editableSummary}
-          onChange={setEditableSummary}
-          onSave={saveSummary}
-        />
-      ) : (
-        <>
-          {/* メッセージリスト */}
+    <div className="flex flex-col h-full">
+      {/* メッセージリスト */}
+      <div className="flex-grow overflow-y-auto">
+        {showingSummary ? (
+          <Summary 
+            summary={summary}
+            onChange={setEditableSummary}
+            onSave={saveSummary}
+          />
+        ) : (
           <MessageList 
-            messages={messages} 
+            messages={messages}
             currentTranscript={currentTranscript}
             startTime={effectiveStartTime}
             messagesEndRef={messagesEndRef}
           />
-          
-          {/* チャットコントロール */}
-          <ChatControls
-            isProcessing={isProcessing}
-            isListening={isListening}
-            onToggleListening={toggleListening}
-            onSendMessage={sendMessage}
-            onEndSession={handleEndSession}
-            currentTranscript={currentTranscript}
-          />
-          
-          {/* タイマー表示 */}
-          {effectiveStartTime && (
-            <div className="absolute bottom-20 right-4 bg-gray-100 px-3 py-1 rounded-lg shadow text-gray-700 font-mono">
-              {elapsedTime}
-            </div>
-          )}
-        </>
+        )}
+      </div>
+      
+      {/* チャットコントロール */}
+      <div className="border-t border-gray-200">
+        <ChatControls 
+          isListening={isListening} 
+          isProcessing={isProcessing}
+          onToggleListening={toggleListening}
+          currentTranscript={currentTranscript}
+          onSendMessage={sendMessage}
+          onEndSession={handleEndSession}
+        />
+      </div>
+      
+      {/* オーディオプレイヤー（非表示） */}
+      <audio ref={audioElementRef} className="hidden" />
+
+      {/* タイマー表示 - 右下隅に小さく表示 */}
+      {effectiveStartTime && (
+        <div className="absolute bottom-20 right-4 bg-gray-100 px-2 py-1 rounded text-xs text-gray-500 opacity-70">
+          {elapsedTime}
+        </div>
       )}
     </div>
   );

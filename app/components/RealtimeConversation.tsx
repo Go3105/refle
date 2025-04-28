@@ -19,6 +19,7 @@ import styles from './RealtimeConversation.module.css';
 import { ConversationHeader, MessageList, InputArea, SummaryDisplay } from '../components/conversation';
 import useSpeech from '../lib/hooks/useSpeech';
 import { useSocketConnection } from '../hooks/useSocketConnection';
+import { shouldEndConversation, createEndConversationMessages } from '@/app/lib/conversation/conversationRules';
 
 /**
  * メッセージデータの型定義
@@ -33,17 +34,24 @@ export interface Message {
 // Socket.IOサーバーのURL
 const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:3001';
 
+// 会話の状態を表す型定義
+type ConversationStatus = 
+    | 'idle'           // 待機中
+    | 'listening'      // 音声認識中
+    | 'processing'     // AI処理中
+    | 'summarizing'    // サマリ生成中
+    | 'summary_ready'  // サマリ生成完了
+    | 'ended';         // 会話終了
+
 export default function RealtimeConversation() {
     // ステート変数
     const [messages, setMessages] = useState<Message[]>([]);     // 会話メッセージ履歴
-    const [isProcessing, setIsProcessing] = useState(false);     // AI処理中フラグ
-    const [summary, setSummary] = useState<string>('');          // 会話サマリ
-    const [editableSummary, setEditableSummary] = useState<string>(''); // 編集可能なサマリ
-    const [showingSummary, setShowingSummary] = useState(false); // サマリ表示状態
+    const [status, setStatus] = useState<ConversationStatus>('idle'); // 会話の状態
     const [conversationEnded, setConversationEnded] = useState(false); // 会話終了フラグ
     const [micPermission, setMicPermission] = useState<boolean | null>(null); // マイク許可状態
     const [recognitionRestart, setRecognitionRestart] = useState(false); // 音声認識再開フラグ
-    const [isEditing, setIsEditing] = useState<boolean>(false); // サマリ編集状態
+    const [conversationStartTime, setConversationStartTime] = useState<number | null>(null); // 会話開始時間
+    const [isProcessing, setIsProcessing] = useState(false);     // AI処理中フラグ
 
     // Refオブジェクト
     const messagesEndRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;        // メッセージ末尾への参照（自動スクロール用）
@@ -73,6 +81,11 @@ export default function RealtimeConversation() {
             setTimeout(() => {
                 if (!conversationEnded) {
                     startListening(); 
+                    
+                    // 初回接続時に会話開始時間を設定
+                    if (!conversationStartTime) {
+                        setConversationStartTime(Date.now());
+                    }
                 }
             }, 500);
         },
@@ -407,6 +420,98 @@ export default function RealtimeConversation() {
         }
     };
 
+    // 会話時間の監視
+    useEffect(() => {
+        if (!conversationStartTime) {
+            console.log('会話開始時間が設定されていません');
+            return;
+        }
+
+        console.log('会話開始時間:', new Date(conversationStartTime).toISOString());
+        console.log('現在時刻:', new Date().toISOString());
+        console.log('経過時間:', (Date.now() - conversationStartTime) / 1000, '秒');
+
+        let timeoutId: NodeJS.Timeout;
+        let isEnding = false;  // 終了処理中フラグ
+
+        const endConversation = () => {
+            if (isEnding || conversationEnded) {
+                console.log('既に終了処理中または終了済みのため、終了処理をスキップします');
+                return;
+            }
+            isEnding = true;
+
+            console.log('会話開始から60秒経過しました。会話を終了します');
+            console.log('終了時の経過時間:', (Date.now() - conversationStartTime) / 1000, '秒');
+            
+            // 会話終了フラグを設定
+            setConversationEnded(true);
+            setStatus('ended');
+            
+            // 終了メッセージを追加
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: '会話が終了しました。ありがとうございました。',
+                timestamp: Date.now()
+            }]);
+            
+            // 音声認識を停止
+            stopListening();
+            
+            // Socket接続を切断
+            if (socketRef?.current) {
+                console.log('Socket接続を切断します');
+                socketRef.current.emit('end-session');
+                disconnect();
+            }
+        };
+
+        const currentTime = Date.now();
+        const elapsedTime = currentTime - conversationStartTime;
+        
+        console.log('タイマー設定時の経過時間:', elapsedTime / 1000, '秒');
+        
+        // 既に60秒経過しているかチェック
+        if (elapsedTime >= 60000) {
+            console.log('既に60秒経過しているため、即座に終了処理を実行します');
+            endConversation();
+            return;
+        }
+
+        // 残り時間を計算してタイマーを設定
+        const timeUntilEnd = 60000 - elapsedTime;
+        console.log('タイマーを設定します。残り時間:', timeUntilEnd / 1000, '秒');
+        
+        timeoutId = setTimeout(() => {
+            console.log('タイマーが発火しました');
+            endConversation();
+        }, timeUntilEnd);
+
+        // クリーンアップ関数
+        return () => {
+            if (timeoutId) {
+                console.log('タイマーをクリアします');
+                clearTimeout(timeoutId);
+            }
+        };
+    }, [conversationStartTime, conversationEnded, stopListening, socketRef, disconnect]);
+
+    // 音声認識状態の変更を監視
+    useEffect(() => {
+        if (conversationEnded) {
+            setStatus('ended');
+            return;
+        }
+
+        if (isListening) {
+            setStatus('listening');
+        } else if (isProcessing) {
+            setStatus('processing');
+        } else {
+            setStatus('idle');
+        }
+    }, [isListening, isProcessing, conversationEnded]);
+
     /**
      * メッセージを送信する関数
      */
@@ -414,40 +519,81 @@ export default function RealtimeConversation() {
         // 空のメッセージは送信しない
         if (!text.trim() || isProcessing || conversationEnded) return;
         
-        // 新しいメッセージを追加
+        // 会話開始時間が設定されていなければ設定
+        if (!conversationStartTime) {
+            setConversationStartTime(Date.now());
+        }
+
+        // 「終了」と入力されたら会話を終了
+        if (text.trim() === '終了') {
+            console.log('ユーザーが終了を要求しました');
+            
+            // まず会話終了フラグを設定
+            setConversationEnded(true);
+            
+            // ユーザーのメッセージを追加
+            const userMessage: Message = {
+                role: 'user',
+                content: text,
+                timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, userMessage]);
+            
+            // 音声認識を完全に停止
+            stopListening();
+            setIsProcessing(false);  // 処理中フラグを明示的にリセット
+            
+            // Socket接続を切断
+            if (socketRef?.current) {
+                socketRef.current.emit('end-session');
+                disconnect();
+            }
+            
+            // 状態を更新
+            setStatus('ended');
+            
+            // 終了メッセージを追加
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: '会話が終了しました。ありがとうございました。',
+                timestamp: Date.now()
+            }]);
+
+            // 即座にホーム画面に戻る
+            window.location.href = '/';
+            
+            return;
+        }
+        
+        // 通常の会話処理
         const newMessage: Message = {
             role: 'user',
             content: text,
             timestamp: Date.now()
         };
         
-        // メッセージリストを更新
         setMessages(prev => [...prev, newMessage]);
-        
-        // 処理中フラグを設定
         setIsProcessing(true);
+        setStatus('processing');
         
         console.log('メッセージを送信:', text);
         
-        // Socket.IOで送信 - 'chat-message'ではなく'user-speech'イベントを使用
         if (socketRef?.current) {
             socketRef.current.emit('user-speech', text);
             console.log('user-speechイベントを送信しました:', text);
             
-            // 処理タイムアウトを設定（30秒後にタイムアウト）
             processingTimeoutRef.current = setTimeout(() => {
                 if (isProcessing) {
                     console.log('AIレスポンスのタイムアウト: 処理をリセットします');
                     setIsProcessing(false);
+                    setStatus('idle');
                     
-                    // タイムアウトメッセージを表示
                     setMessages(prev => [...prev, {
                         role: 'assistant',
                         content: 'レスポンスの取得に時間がかかりすぎています。もう一度お試しください。',
                         timestamp: Date.now()
                     }]);
                     
-                    // 音声認識を再開
                     setTimeout(() => {
                         if (isMountedRef.current && !conversationEnded) {
                             startListening();
@@ -458,6 +604,7 @@ export default function RealtimeConversation() {
         } else {
             console.error('Socket接続がありません');
             setIsProcessing(false);
+            setStatus('idle');
         }
     }
 
@@ -484,67 +631,20 @@ export default function RealtimeConversation() {
         
         // 会話終了フラグを立てる
         setConversationEnded(true);
+        setStatus('ended');
+        
+        // 終了メッセージを追加
+        setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '会話が終了しました。ありがとうございました。',
+            timestamp: Date.now()
+        }]);
         
         // Socket接続を切断
         if (socketRef?.current) {
             socketRef.current.emit('end-session');
             disconnect();
         }
-        
-        // 会話サマリを作成
-        createSummary();
-    };
-
-    /**
-     * 会話サマリを作成する
-     */
-    const createSummary = async () => {
-        if (messages.length === 0) return;
-        
-        try {
-            setIsProcessing(true);
-            
-            // サマリ生成APIを呼び出す
-            const response = await fetch('/api/summarize', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ messages })
-            });
-            
-            if (!response.ok) {
-                throw new Error('サマリの生成に失敗しました');
-            }
-            
-            const data = await response.json();
-            setSummary(data.summary);
-            setEditableSummary(data.summary);
-            setShowingSummary(true);
-        } catch (error) {
-            console.error('サマリ生成エラー:', error);
-            alert('会話のサマリ生成に失敗しました。');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    /**
-     * サマリの編集処理
-     */
-    const handleSummaryChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setEditableSummary(e.target.value);
-    };
-
-    /**
-     * サマリの保存処理
-     */
-    const handleSaveSummary = () => {
-        setSummary(editableSummary);
-        setShowingSummary(false);
-        setIsEditing(false);
-        
-        // サーバーにサマリを保存する処理をここに追加可能
     };
 
     // マイク許可を要求する関数
@@ -570,7 +670,7 @@ export default function RealtimeConversation() {
     };
 
     // マイク権限が付与されていない場合の表示
-    if (micPermission === false && !showingSummary) {
+    if (micPermission === false) {
         return (
             <div className="flex flex-col h-screen bg-gray-50 items-center justify-center p-4">
                 <div className="bg-white rounded-lg shadow-lg p-6 max-w-md text-center">
@@ -591,79 +691,37 @@ export default function RealtimeConversation() {
         );
     }
 
-    // 会話終了時とサマリ表示時のUI
-    if (showingSummary) {
-        return (
-            <div className="flex flex-col h-screen bg-gray-50">
-                {/* 会話ヘッダー */}
-                <ConversationHeader 
-                    onEndSession={handleEndSession}
-                    isProcessing={isProcessing}
-                    isDisabled={conversationEnded}
-                />
-                
-                {/* メッセージ一覧 */}
-                <MessageList 
-                    messages={messages}
-                    messagesEndRef={messagesEndRef}
-                />
-                
-                {/* 音声再生用の非表示オーディオ要素 */}
-                <audio ref={audioElementRef} className="hidden" />
-                
-                {/* 入力エリア */}
-                <InputArea
-                    isListening={isListening}
-                    isProcessing={isProcessing}
-                    currentTranscript={currentTranscript}
-                    toggleListening={handleToggleMic}
-                    onSendMessage={handleSendMessage}
-                    isDisabled={conversationEnded}
-                />
-
-                {summary && (
-                    <div className="w-full p-4">
-                        <SummaryDisplay 
-                            summary={summary} 
-                            onChange={handleSummaryChange} 
-                            onSave={handleSaveSummary} 
-                            isEditing={isEditing}
-                        />
-
-                        <div className="mt-4 flex justify-center">
-                            <button
-                                onClick={() => setIsEditing(!isEditing)}
-                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                            >
-                                {isEditing ? '編集をキャンセル' : '編集する'}
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    }
-
     return (
-        <div className="flex flex-col h-screen bg-gray-50">
-            {/* 会話ヘッダー */}
+        <div className={styles.container}>
             <ConversationHeader 
+                isConnected={isConnected}
                 onEndSession={handleEndSession}
                 isProcessing={isProcessing}
                 isDisabled={conversationEnded}
             />
             
-            {/* メッセージ一覧 */}
             <MessageList 
                 messages={messages}
                 messagesEndRef={messagesEndRef}
             />
             
-            {/* 音声再生用の非表示オーディオ要素 */}
-            <audio ref={audioElementRef} className="hidden" />
+            {conversationEnded && (
+                <div className={styles.endForm}>
+                    <div className={styles.endMessage}>
+                        会話が終了しました。ありがとうございました。
+                    </div>
+                    <div className={styles.endActions}>
+                        <button 
+                            onClick={handleEndSession}
+                            className={styles.endButton}
+                        >
+                            完了
+                        </button>
+                    </div>
+                </div>
+            )}
             
-            {/* 入力エリア */}
-            <InputArea
+            <InputArea 
                 isListening={isListening}
                 isProcessing={isProcessing}
                 currentTranscript={currentTranscript}
