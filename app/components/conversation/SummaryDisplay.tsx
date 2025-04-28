@@ -31,6 +31,11 @@ export default function SummaryDisplay({ summary, onChange, onSave, isEditing }:
                         保存
                     </button>
                 </div>
+                
+                {/* フッターメッセージ */}
+                <div className="mt-2 text-right text-sm text-gray-500">
+                    <p>※このサマリはAIによって自動生成されたものです。必要に応じて編集できます。</p>
+                </div>
             </form>
         </div>
     );
