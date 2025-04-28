@@ -21,19 +21,21 @@ export interface PromptTemplate {
 /**
  * フェーズの設定を定義するインターフェース
  */
+interface BehaviorConfig {
+    temperature?: number;
+    maxOutputTokens?: number;
+    requireSummary?: boolean;
+    showVisualHint?: boolean;
+    soundEffect?: string;
+    [key: string]: boolean | number | string | undefined;
+}
+
 export interface PhaseConfig {
     id: string;
     name: string;
     duration: { start: number; end: number };
     prompt: string;
-    behavior?: {
-        temperature?: number;
-        maxOutputTokens?: number;
-        requireSummary?: boolean;
-        showVisualHint?: boolean;
-        soundEffect?: string;
-        // 追加の挙動設定を定義可能
-    };
+    behavior?: BehaviorConfig;
 }
 
 /**
@@ -176,7 +178,7 @@ export class ConversationPhaseManager {
      * @param elapsedSeconds - 経過秒数
      * @returns 挙動設定オブジェクト
      */
-    getBehaviorForPhase(elapsedSeconds: number): any {
+    getBehaviorForPhase(elapsedSeconds: number): BehaviorConfig {
         return this.getCurrentPhase(elapsedSeconds).behavior || {};
     }
 
@@ -366,10 +368,19 @@ export const SUMMARY_PROMPT = {
 // デフォルトのウェルカムメッセージ
 export const DEFAULT_WELCOME_MESSAGE = 'こんにちは、今日は何をしましたか？';
 
-interface PromptData {
-    // プロンプトのデータ構造に合わせて型を定義
+interface PromptConfig {
+    id: string;
+    name: string;
+    content: string;
+    variables?: Record<string, string>;
 }
 
-const formatPrompt = (data: PromptData) => {
+const formatPrompt = (config: PromptConfig) => {
     // ... existing code ...
+}
+
+interface PromptData {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+    timestamp?: number;
 } 

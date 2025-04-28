@@ -13,6 +13,25 @@ interface Phase {
     };
 }
 
+interface BehaviorConfig {
+    maxDuration?: number;
+    minDuration?: number;
+    timeout?: number;
+    [key: string]: unknown;
+}
+
+interface PhaseBehavior {
+    requireSummary?: boolean;
+    maxDuration?: number;
+    minDuration?: number;
+    timeout?: number;
+    temperature?: number;
+    maxOutputTokens?: number;
+    showVisualHint?: boolean;
+    soundEffect?: string;
+    [key: string]: boolean | number | string | undefined;
+}
+
 /**
  * useConversationPhase フックの戻り値の型定義
  */
@@ -25,7 +44,7 @@ export interface UseConversationPhaseReturn {
     formattedRemainingTime: string;
     elapsedSeconds: number;
     isRequiringSummary: boolean;
-    phaseBehavior: any;
+    phaseBehavior: PhaseBehavior;
     allPhases: PhaseConfig[];
     checkBehavior: (behaviorKey: string) => boolean;
 }

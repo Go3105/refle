@@ -43,6 +43,10 @@ type ConversationStatus =
     | 'summary_ready'  // サマリ生成完了
     | 'ended';         // 会話終了
 
+interface SpeechRequest {
+    text: string;
+}
+
 export default function RealtimeConversation() {
     // ステート変数
     const [messages, setMessages] = useState<Message[]>([]);     // 会話メッセージ履歴
@@ -58,7 +62,7 @@ export default function RealtimeConversation() {
     const isMountedRef = useRef(true);
     const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 処理タイムアウト用
     const audioElementRef = useRef<HTMLAudioElement>(null);     // 音声再生用Audio要素
-    const socketRefInternal = useRef<any>(null);                // Socket.IO参照用の内部Ref
+    const socketRefInternal = useRef<Socket | null>(null);      // Socket.IO参照用の内部Ref
     const recognitionTimerRef = useRef<NodeJS.Timeout | null>(null); // 音声認識再開タイマー
 
     // イベント結果を追跡（二重処理防止）

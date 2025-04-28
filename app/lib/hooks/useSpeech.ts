@@ -57,6 +57,24 @@ interface UseSpeechProps {
     socketRef?: React.MutableRefObject<Socket | null>;
 }
 
+interface SpeechRecognitionError {
+    error: string;
+    message: string;
+}
+
+interface SpeechRecognitionEvent {
+    results: {
+        [index: number]: {
+            [index: number]: {
+                transcript: string;
+            };
+            length: number;
+            isFinal: boolean;
+        };
+        length: number;
+    };
+}
+
 declare global {
     interface Window {
         SpeechRecognition: new () => MySpeechRecognition;
@@ -94,7 +112,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         if (!socketRef?.current) return;
 
         // 音声合成リクエストのハンドラー
-        const handleSpeechRequest = async (data: any) => {
+        const handleSpeechRequest = async (data: { text: string }) => {
             if (!audioRef.current) return;
 
             console.log('音声合成リクエスト受信:', data);
@@ -203,7 +221,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
             recognition.startPending = false;
 
             // 音声認識結果イベント
-            recognition.onresult = (event: MySpeechRecognitionEvent) => {
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
                 const results = Array.from({ length: event.results.length }, (_, i) => event.results[i]);
                 const transcript = results
                     .map(result => result[0])
@@ -270,7 +288,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
             };
 
             // エラーイベント
-            recognition.onerror = (event) => {
+            recognition.onerror = (event: SpeechRecognitionError) => {
                 // 無視可能なエラー
                 if (event.error === 'no-speech') {
                     console.log('無音検出、処理を継続します');
@@ -516,8 +534,8 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
             try {
                 // イベントハンドラを無効化（空の関数に置き換え）
                 recognitionRef.current.onend = () => { };
-                recognitionRef.current.onresult = (() => { }) as any;
-                recognitionRef.current.onerror = (() => { }) as any;
+                recognitionRef.current.onresult = (() => { }) as (event: MySpeechRecognitionEvent) => void;
+                recognitionRef.current.onerror = (() => { }) as (event: SpeechRecognitionError) => void;
                 recognitionRef.current.onspeechstart = () => { };
                 recognitionRef.current.onspeechend = () => { };
 
@@ -583,7 +601,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
      */
     const setupSpeechRecognitionEvents = (recognition: MySpeechRecognition) => {
         // 音声認識結果イベント
-        recognition.onresult = (event: MySpeechRecognitionEvent) => {
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
             const results = Array.from({ length: event.results.length }, (_, i) => event.results[i]);
             const transcript = results
                 .map(result => result[0])
@@ -650,7 +668,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         };
 
         // エラーイベント
-        recognition.onerror = (event) => {
+        recognition.onerror = (event: SpeechRecognitionError) => {
             // 無視可能なエラー
             if (event.error === 'no-speech') {
                 console.log('無音検出、処理を継続します');
