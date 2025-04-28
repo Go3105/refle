@@ -3,9 +3,13 @@ import BlueAnimation from '../../public/MicrophoneAnimationBlue.json';
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 
+interface MicrophoneiconProps {
+    isHovered?: boolean;
+}
+
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 
-const Microphoneicon = ({ isHovered = false }) => {
+const Microphoneicon: React.FC<MicrophoneiconProps> = ({ isHovered = false }) => {
     // ホバー状態に応じてアニメーションデータを変更
     const animationOptions = useMemo(() => {
         return {
@@ -20,7 +24,7 @@ const Microphoneicon = ({ isHovered = false }) => {
 
     return (
         <div className="w-full h-full flex items-center justify-center">
-            <div 
+            <div
                 className="relative flex items-center justify-center"
                 style={{
                     transform: isHovered ? 'scale(2)' : 'scale(1)',
