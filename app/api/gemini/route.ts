@@ -40,7 +40,6 @@ class SessionManager {
     // セッション開始時間などの情報を保持
     private sessionTime: SessionTime | null = null;
     // 会話履歴を配列として保持
-    private conversationHistory: any[] = [];
     private conversationHistory: ConversationMessage[] = [];
 
     // プライベートコンストラクタ（外部からのインスタンス生成を防ぐ）
@@ -67,7 +66,6 @@ class SessionManager {
     /**
      * 現在の会話履歴を取得
      */
-    public getConversationHistory(): any[] {
     public getConversationHistory(): ConversationMessage[] {
         return this.conversationHistory;
     }
@@ -209,7 +207,7 @@ export async function POST(request: NextRequest) {
             console.log('サマリ作成プロンプトを準備しています');
             // テンプレート内のプレースホルダーを実際の会話データで置換
             const summaryPrompt = SUMMARY_PROMPT.content.replace('{conversationHistory}', conversationData);
-            
+
             // プロンプト内容をログに出力（全文）
             console.log('サマリ作成プロンプト内容:');
             console.log(summaryPrompt);
@@ -314,7 +312,7 @@ export async function POST(request: NextRequest) {
 
         // AIの応答を会話履歴に追加
         sessionManager.addMessage('assistant', fullResponse);
-        
+
         // デバッグ情報のログ出力
         console.log('AI:', fullResponse);
         console.log('--- 会話履歴 ---');
