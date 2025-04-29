@@ -1,5 +1,4 @@
-// Next.jsで実行時環境をNode.jsに指定（サーバーサイドでコードを実行するため）
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 // 必要なモジュールをインポート
 import { NextRequest, NextResponse } from 'next/server'; // Next.jsのHTTPリクエスト/レスポンス処理用

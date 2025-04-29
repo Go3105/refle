@@ -10,6 +10,7 @@
  * 4. ElevenLabs APIを使用した音声合成
  * 5. 会話履歴の管理
  */
+export const runtime = 'edge';
 
 import { Server } from 'socket.io';
 import {
@@ -114,7 +115,7 @@ export default function handler(req, res) {
                     timestamp,
                     ...options
                 });
-                
+
                 // 基本設定
                 const eventData = {
                     status: 'ready',
@@ -124,10 +125,10 @@ export default function handler(req, res) {
                     reset_state: true,
                     ...options
                 };
-                
+
                 // イベント送信
                 socket.emit('ready-for-next-input', eventData);
-                
+
                 // イベント直後の処理完了確認
                 setTimeout(() => {
                     clientState.isProcessing = false;
@@ -144,7 +145,7 @@ export default function handler(req, res) {
             socket.on('user-speech', text => {
                 // デバッグ：受信したテキストを必ず記録
                 console.log('★ユーザー発話イベント受信:', text);
-                
+
                 // 連続した同じメッセージや短すぎるメッセージは処理しない（無音や認識エラー対策）
                 if (!text || text.trim().length < 2) {
                     // 音声認識を継続させる
@@ -291,7 +292,7 @@ export default function handler(req, res) {
                         // テキスト応答をクライアントに送信
                         console.log('AIレスポンス送信:', aiResponse.substring(0, 50) + '...');
                         socket.emit('ai-response', { text: aiResponse });
-                        
+
                         // ログ追加: 音声合成に進みます
                         console.log('ai-responseイベント送信完了、音声合成に進みます');
 
@@ -312,7 +313,7 @@ export default function handler(req, res) {
                                 console.log('次の入力準備完了信号を送信します');
                                 // 統一関数を使って送信
                                 sendReadyForNextInput(socket, {
-                                    source: 'ai_response_complete', 
+                                    source: 'ai_response_complete',
                                     reset_state: true
                                 });
                             }, 3000); // 3秒後に音声認識を再開できるようにする
@@ -337,7 +338,7 @@ export default function handler(req, res) {
                     sendReadyForNextInput(socket, {
                         error: true
                     });
-                    
+
                     // 確実に処理状態をリセット
                     setTimeout(() => {
                         clientState.isProcessing = false;
@@ -398,14 +399,14 @@ export default function handler(req, res) {
                     const base64Audio = Buffer.from(audioBuffer).toString('base64');
 
                     // 音声データをクライアントに送信
-                    socket.emit('audio-stream', { 
-                        audio: base64Audio, 
-                        contentType: 'audio/mpeg', 
-                        text: text 
+                    socket.emit('audio-stream', {
+                        audio: base64Audio,
+                        contentType: 'audio/mpeg',
+                        text: text
                     });
 
                     console.log('音声合成完了、音声データを送信しました');
-                    
+
                     // 3秒後に次の入力準備完了を送信（明示的なタイムアウト）
                     setTimeout(() => {
                         console.log('音声合成完了後、次の入力準備完了信号を送信します');
@@ -438,7 +439,7 @@ export default function handler(req, res) {
                 sendReadyForNextInput(socket, {
                     error: true
                 });
-                
+
                 // 確実に状態をリセット
                 setTimeout(() => {
                     clientState.isProcessing = false;
@@ -452,11 +453,11 @@ export default function handler(req, res) {
              */
             socket.on('ping', () => {
                 console.log('Pingイベント受信。現在の状態:', { isProcessing: clientState.isProcessing });
-                socket.emit('pong', { 
+                socket.emit('pong', {
                     time: Date.now(),
                     isProcessing: clientState.isProcessing,
                     historyLength: clientState.conversationHistory.length
-                 });
+                });
             });
 
             /**
