@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { auth } from '@/auth';
 import TopPage from './components/TopPage';
 
