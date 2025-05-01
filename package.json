@@ -30,6 +30,8 @@
         "next-auth": "^5.0.0-beta.25",
         "postcss": "8.5.1",
         "postgres": "^3.4.5",
+        "pusher": "^5.2.0",
+        "pusher-js": "^8.4.0",
         "react": "latest",
         "react-dom": "latest",
         "react-icons": "^5.5.0",

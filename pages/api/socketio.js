@@ -47,12 +47,6 @@ export default function handler(req, res) {
 
         // Socket.IOサーバーインスタンスの作成
         const io = new Server(httpServer, {
-            cors: {
-                origin: [
-                    "http://localhost:3000",
-                    "https://refle-gos-projects-9c59c4ab.vercel.app/"
-                ],
-            },
             path: '/api/socketio', // APIパス
             addTrailingSlash: false, // パスの末尾にスラッシュを追加しない
             pingTimeout: 6000,  // 接続タイムアウト（6秒）

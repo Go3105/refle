@@ -876,7 +876,7 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
     /**
      * メッセージを送信する関数
      */
-    const handleSendMessage = (text: string) => {
+    const handleSendMessage = async (text: string) => {
         // 空のメッセージなら送信しない
         if (!text.trim()) {
             console.log('空のメッセージは送信しません');
@@ -897,14 +897,16 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
         // 入力フィールドをクリア
         setCurrentTranscript('');
 
-        // 直接socketRefを使用してメッセージを送信する試み
+        // Pusher用APIにfetchで送信
         try {
-            if (socketRef?.current) {
-                console.log('直接socketRefを使用してユーザー発話を送信:', text);
-                socketRef.current.emit('user-speech', text);
-            }
+            await fetch('/api/user-speech', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channel: 'public-channel', text }),
+            });
+            console.log('Pusher経由でメッセージ送信完了:', text);
         } catch (error) {
-            console.error('Socket.IOでの直接送信エラー:', error);
+            console.error('Pusher API送信エラー:', error);
         }
 
         // ユーザーメッセージを送信（コンポーネントのコールバック経由）
