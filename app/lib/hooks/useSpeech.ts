@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { Socket } from 'socket.io-client';
 
 // Web Speech API の型拡張
 interface MySpeechRecognitionEvent extends Event {
@@ -54,7 +53,6 @@ interface EchoCancellation {
 // プロップスの型定義
 interface UseSpeechProps {
     onMessageReady: (text: string) => void;
-    socketRef?: React.MutableRefObject<Socket | null>;
 }
 
 interface SpeechRecognitionError {
@@ -82,7 +80,7 @@ declare global {
     }
 }
 
-export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps) {
+export default function useSpeech({ onMessageReady }: UseSpeechProps) {
     // 音声認識の状態
     const [isListening, setIsListening] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -106,87 +104,6 @@ export default function useSpeech({ onMessageReady, socketRef }: UseSpeechProps)
 
     // 無音検出の閾値（ミリ秒）
     const SILENCE_THRESHOLD = 2500;
-
-    // Socket.IOイベントの設定
-    useEffect(() => {
-        if (!socketRef?.current) return;
-
-        // 音声合成リクエストのハンドラー
-        const handleSpeechRequest = async (data: { text: string }) => {
-            if (!audioRef.current) return;
-
-            console.log('音声合成リクエスト受信:', data);
-
-            try {
-                // 音声の再生中は、現在の再生を停止して新しい音声の準備
-                if (!audioRef.current.paused) {
-                    audioRef.current.pause();
-                }
-                audioRef.current.currentTime = 0;
-
-                // text-to-speech APIを呼び出して音声を取得
-                const res = await fetch('/api/tts', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ text: data.text }),
-                });
-
-                if (!res.ok) {
-                    throw new Error(`音声合成APIエラー: ${res.status}`);
-                }
-
-                // 音声データを取得してBlobに変換
-                const audioBlob = await res.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-
-                // 音声再生の準備
-                audioRef.current.src = audioUrl;
-
-                // 音声の再生を開始
-                await audioRef.current.play();
-
-                console.log('音声再生開始');
-
-                // 再生が終了したらリソースを解放
-                audioRef.current.onended = () => {
-                    console.log('音声再生終了');
-                    URL.revokeObjectURL(audioUrl);
-
-                    // Socket.IOサーバーに再生完了を通知
-                    if (socketRef?.current) {
-                        socketRef.current.emit('speech-ended');
-                    }
-
-                    // 音声認識が停止していれば再開（会話ターン制御のため）
-                    if (!isProcessing) {
-                        setTimeout(() => {
-                            startListening();
-                        }, 300); // 少し間を置いてから次の音声認識を開始
-                    }
-                };
-
-            } catch (error) {
-                console.error('音声合成エラー:', error);
-
-                // Socket.IOサーバーにエラーを通知
-                if (socketRef?.current) {
-                    socketRef.current.emit('tts-error', { error: (error as Error).message });
-                }
-            }
-        };
-
-        // イベントリスナーを登録
-        socketRef.current.on('speech-request', handleSpeechRequest);
-
-        // クリーンアップ関数
-        return () => {
-            if (socketRef.current) {
-                socketRef.current.off('speech-request', handleSpeechRequest);
-            }
-        };
-    }, [socketRef, isProcessing]);
 
     // Web Speech API初期化
     useEffect(() => {

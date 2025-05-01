@@ -217,8 +217,7 @@ export default function RealtimeConversation() {
         isProcessing: speechIsProcessing,
         audioRef
     } = useSpeech({
-        onMessageReady: handleSendMessage,
-        socketRef: socketRefInternal
+        onMessageReady: handleSendMessage
     });
 
     // audioRef設定
