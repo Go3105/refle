@@ -2,58 +2,45 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { updateNotionAPIToken, updateNotionDatabaseId } from '@/app/lib/actions';
+import { useSession } from 'next-auth/react';
 
 export default function SettingsPage() {
-    const [notifications, setNotifications] = useState(true);
-    const [theme, setTheme] = useState('light');
-    const [language, setLanguage] = useState('ja');
-    const [showInput, setShowInput] = useState(false);
     const [notionApiToken, setNotionApiToken] = useState('');
     const [notionDatabaseId, setNotionDatabaseId] = useState('');
+    const [loadingToken, setLoadingToken] = useState(false);
+    const [loadingDbId, setLoadingDbId] = useState(false);
+    const { data: session, status } = useSession();
 
-    // Notion API Tokenの変更ボタン押下時
     const handleApiTokenChange = async () => {
-        if (!notionApiToken) {
-            alert('Notion API Tokenを入力してください');
+        if (!session?.user?.email) {
+            alert('Googleログインが必要です');
             return;
         }
+        setLoadingToken(true);
         try {
-            const res = await fetch('/api/notion/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notion_api_token: notionApiToken })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                alert('Notion API Tokenが変更されました');
-            } else {
-                alert(data.error || 'エラーが発生しました');
-            }
+            await updateNotionAPIToken({ email: session.user.email, notion_api_token: notionApiToken });
+            alert('Notion API Tokenが変更されました');
         } catch (e) {
-            alert('通信エラーが発生しました');
+            alert('変更に失敗しました');
+        } finally {
+            setLoadingToken(false);
         }
     };
 
-    // Notion Database IDの変更ボタン押下時
     const handleDatabaseIdChange = async () => {
-        if (!notionDatabaseId) {
-            alert('Notion Database IDを入力してください');
+        if (!session?.user?.email) {
+            alert('Googleログインが必要です');
             return;
         }
+        setLoadingDbId(true);
         try {
-            const res = await fetch('/api/notion/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notion_database_id: notionDatabaseId })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                alert('Notion Database IDが変更されました');
-            } else {
-                alert(data.error || 'エラーが発生しました');
-            }
+            await updateNotionDatabaseId({ email: session.user.email, notion_database_id: notionDatabaseId });
+            alert('Notion Database IDが変更されました');
         } catch (e) {
-            alert('通信エラーが発生しました');
+            alert('変更に失敗しました');
+        } finally {
+            setLoadingDbId(false);
         }
     };
 
@@ -64,19 +51,6 @@ export default function SettingsPage() {
 
                 <div className="bg-white p-6 rounded-lg shadow-md mb-6">
                     <h2 className="text-lg font-semibold mb-4">アプリ設定</h2>
-
-                    <div className="mb-4">
-                        <label className="block mb-2">言語</label>
-                        <select
-                            value={language}
-                            onChange={(e) => setLanguage(e.target.value)}
-                            className="w-full p-2 border rounded"
-                        >
-                            <option value="ja">日本語</option>
-                            <option value="en">English</option>
-                        </select>
-                    </div>
-
                     <div className="mb-4">
                         <label className="block mb-2">Notion API Token</label>
                         <div className="flex items-center">
@@ -90,8 +64,9 @@ export default function SettingsPage() {
                             <button
                                 onClick={handleApiTokenChange}
                                 className="bg-green-500 text-white px-2 py-2 rounded hover:bg-green-600"
+                                disabled={loadingToken}
                             >
-                                変更
+                                {loadingToken ? '変更中...' : '変更'}
                             </button>
                         </div>
                     </div>
@@ -109,8 +84,9 @@ export default function SettingsPage() {
                             <button
                                 onClick={handleDatabaseIdChange}
                                 className="bg-green-500 text-white px-2 py-2 rounded hover:bg-green-600"
+                                disabled={loadingDbId}
                             >
-                                変更
+                                {loadingDbId ? '変更中...' : '変更'}
                             </button>
                         </div>
                     </div>
