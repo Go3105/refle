@@ -18,6 +18,9 @@ export default function LoginPage() {
     const handleLogin = () => {
         signIn('google', { callbackUrl: '/' });
     };
+    const handleRegister = () => {
+        signIn('google', { callbackUrl: '/register' });
+    };
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
@@ -35,7 +38,7 @@ export default function LoginPage() {
                     Googleログイン
                 </button>
                 <button
-                    onClick={handleLogin}
+                    onClick={handleRegister}
                     className="w-full relative flex items-center justify-center px-5 py-2 border border-transparent font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
                 >
                     <span className="absolute left-4">

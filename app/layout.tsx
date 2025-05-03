@@ -2,6 +2,7 @@ import './styles/global.css';
 import { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ConversationProvider } from './context/ConversationContext';
+import { SessionProvider } from 'next-auth/react';
 
 const inter = Inter({
     subsets: ['latin'],
@@ -30,9 +31,11 @@ export default async function RootLayout({
                 className={`${inter.className} antialiased`}
                 style={{ overscrollBehaviorX: "auto" }}
             >
-                <ConversationProvider>
-                    {children}
-                </ConversationProvider>
+                <SessionProvider>
+                    <ConversationProvider>
+                        {children}
+                    </ConversationProvider>
+                </SessionProvider>
             </body>
         </html>
     );
